@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { readCursor, writeCursor } from "../dist/codex/cursor.js";
+import { readCodexTranscript } from "../dist/codex/transcript.js";
 import { loadConfig } from "../dist/config.js";
 import { deterministicId } from "../dist/ids.js";
 import { redactSecrets } from "../dist/redact.js";
@@ -131,6 +133,51 @@ try {
   assert.equal(await compatStore.count(), 1);
   assert.equal((await compatStore.all()).length, 0);
   assert.equal((await compatStore.all({ includeDeleted: true })).length, 1);
+
+  const transcript = path.join(temp, "transcript.jsonl");
+  await writeFile(
+    transcript,
+    [
+      JSON.stringify({
+        timestamp: "2026-06-29T00:00:01.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "<pathmark-memory>skip</pathmark-memory>" }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-29T00:00:02.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Please remember this Pathmark decision." }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-29T00:00:03.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: "Decision captured." }],
+        },
+      }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+
+  const turns = await readCodexTranscript(transcript);
+  assert.equal(turns.length, 2);
+  assert.equal(turns[0].role, "user");
+  assert.equal(turns[1].role, "assistant");
+
+  const cursorStoreDir = path.join(temp, "cursor");
+  assert.equal(await readCursor(cursorStoreDir, "session-a"), 0);
+  await writeCursor(cursorStoreDir, "session-a", 2);
+  assert.equal(await readCursor(cursorStoreDir, "session-a"), 2);
 
   console.log("Codex adapter base tests passed");
 } finally {
