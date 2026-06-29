@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { observe, prompt, recall, writeback } from "../dist/codex/capture.js";
+import { hasPathmarkMcp, installPathmarkMcp, pathmarkMcpStatus, removePathmarkMcp } from "../dist/codex/config-file.js";
 import { cursorPath, readCursor, writeCursor } from "../dist/codex/cursor.js";
+import { hookStatus, installPathmarkHooks, uninstallPathmarkHooks } from "../dist/codex/hooks.js";
+import { codexConfigPath, codexCursorDir, codexHome, codexHooksPath, pathmarkStoreDir } from "../dist/codex/paths.js";
 import { summarizeToolUse } from "../dist/codex/tool-summary.js";
 import { readCodexTranscript } from "../dist/codex/transcript.js";
 import { loadConfig } from "../dist/config.js";
@@ -993,6 +996,134 @@ try {
   const generalRecall = await recall({ session_id: "general-session" });
   assert.equal(generalRecall.includes("General session recall remains usable."), true);
 
+  const codexHomeDir = path.join(temp, "codex-home");
+  const installerStoreDir = path.join(temp, "installer-store");
+  process.env.CODEX_HOME = codexHomeDir;
+  process.env.PATHMARK_STORE_DIR = installerStoreDir;
+  assert.equal(codexHome(), codexHomeDir);
+  assert.equal(codexHooksPath(), path.join(codexHomeDir, "hooks.json"));
+  assert.equal(codexConfigPath(), path.join(codexHomeDir, "config.toml"));
+  assert.equal(pathmarkStoreDir(), installerStoreDir);
+  assert.equal(codexCursorDir(), path.join(installerStoreDir, "codex-cursors"));
+  await mkdir(codexHomeDir, { recursive: true });
+
+  const honchoDataDir = path.join(temp, "honcho-data");
+  await mkdir(honchoDataDir, { recursive: true });
+  await writeFile(path.join(honchoDataDir, "memory.jsonl"), '{"kept":true}\n', "utf8");
+
+  const hooksPath = path.join(codexHomeDir, "hooks.json");
+  await writeFile(
+    hooksPath,
+    JSON.stringify(
+      {
+        hooks: {
+          SessionStart: [
+            {
+              matcher: "startup",
+              hooks: [
+                { type: "command", command: "pathmark codex recall", timeout: 1 },
+                { type: "command", command: "echo existing-session-start" },
+              ],
+            },
+          ],
+          UserPromptSubmit: [
+            { hooks: [{ type: "command", command: "node /Users/mac/.codex/honcho/codex-honcho.mjs prompt" }] },
+            { hooks: [{ type: "command", command: "echo keep-me" }] },
+          ],
+          Stop: [{ hooks: [{ type: "command", command: "pathmark codex writeback" }] }],
+          OtherEvent: [{ matcher: "*", hooks: [{ type: "command", command: "echo unrelated" }], custom: true }],
+        },
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  assert.deepEqual(await hookStatus(hooksPath), { pathmark: true, honcho: true });
+  await installPathmarkHooks({ replaceHoncho: true, hooksPath });
+  assert.deepEqual(await hookStatus(hooksPath), { pathmark: true, honcho: false });
+  const firstInstalledHooksText = await readFile(hooksPath, "utf8");
+  assert.equal(firstInstalledHooksText.includes("echo existing-session-start"), true);
+  assert.equal(firstInstalledHooksText.includes("echo keep-me"), true);
+  assert.equal(firstInstalledHooksText.includes("echo unrelated"), true);
+  assert.equal(firstInstalledHooksText.includes("codex-honcho"), false);
+  assert.equal(pathmarkHookCommandCount(firstInstalledHooksText), 5);
+  assert.equal((await readFile(path.join(honchoDataDir, "memory.jsonl"), "utf8")).includes('"kept":true'), true);
+  assert.equal((await readdir(codexHomeDir)).some((name) => name.startsWith("hooks.json.backup-")), true);
+
+  await installPathmarkHooks({ replaceHoncho: true, hooksPath });
+  assert.equal(await readFile(hooksPath, "utf8"), firstInstalledHooksText);
+
+  await uninstallPathmarkHooks(hooksPath);
+  const uninstalledHooksText = await readFile(hooksPath, "utf8");
+  assert.deepEqual(await hookStatus(hooksPath), { pathmark: false, honcho: false });
+  assert.equal(uninstalledHooksText.includes("echo existing-session-start"), true);
+  assert.equal(uninstalledHooksText.includes("echo keep-me"), true);
+  assert.equal(uninstalledHooksText.includes("echo unrelated"), true);
+
+  const preserveHonchoHooksPath = path.join(codexHomeDir, "preserve-honcho-hooks.json");
+  await writeFile(
+    preserveHonchoHooksPath,
+    JSON.stringify(
+      {
+        hooks: {
+          UserPromptSubmit: [
+            { hooks: [{ type: "command", command: "node /Users/mac/.codex/honcho/codex-honcho.mjs prompt" }] },
+            { hooks: [{ type: "command", command: "echo keep-honcho-test" }] },
+          ],
+        },
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+  await installPathmarkHooks({ replaceHoncho: false, hooksPath: preserveHonchoHooksPath });
+  assert.deepEqual(await hookStatus(preserveHonchoHooksPath), { pathmark: true, honcho: true });
+  await uninstallPathmarkHooks(preserveHonchoHooksPath);
+  const preserveHonchoText = await readFile(preserveHonchoHooksPath, "utf8");
+  assert.deepEqual(await hookStatus(preserveHonchoHooksPath), { pathmark: false, honcho: true });
+  assert.equal(preserveHonchoText.includes("codex-honcho"), true);
+  assert.equal(preserveHonchoText.includes("echo keep-honcho-test"), true);
+
+  const configPath = path.join(codexHomeDir, "config.toml");
+  await writeFile(
+    configPath,
+    [
+      'model = "gpt-5"',
+      "",
+      "[features]",
+      "experimental = true",
+      "hooks = false",
+      "",
+      "[mcp_servers.other]",
+      'command = "other"',
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await installPathmarkMcp(configPath);
+  assert.equal(await hasPathmarkMcp(configPath), true);
+  assert.deepEqual(await pathmarkMcpStatus(configPath), { installed: true, hooksFeatureEnabled: true });
+  const firstInstalledConfig = await readFile(configPath, "utf8");
+  assert.equal(firstInstalledConfig.includes("experimental = true"), true);
+  assert.equal(firstInstalledConfig.includes("hooks = true"), true);
+  assert.equal(firstInstalledConfig.includes("[mcp_servers.other]"), true);
+  assert.equal(firstInstalledConfig.includes("[mcp_servers.pathmark]"), true);
+  assert.equal(firstInstalledConfig.includes(`PATHMARK_STORE_DIR = ${JSON.stringify(installerStoreDir)}`), true);
+
+  await installPathmarkMcp(configPath);
+  assert.equal(await readFile(configPath, "utf8"), firstInstalledConfig);
+
+  await removePathmarkMcp(configPath);
+  assert.equal(await hasPathmarkMcp(configPath), false);
+  const removedConfig = await readFile(configPath, "utf8");
+  assert.equal(removedConfig.includes("[mcp_servers.pathmark]"), false);
+  assert.equal(removedConfig.includes("[mcp_servers.other]"), true);
+  assert.equal(removedConfig.includes("hooks = true"), true);
+  await removePathmarkMcp(configPath);
+  assert.equal(await readFile(configPath, "utf8"), removedConfig);
+
   console.log("Codex adapter base tests passed");
 } finally {
   await rm(temp, { recursive: true, force: true });
@@ -1006,4 +1137,11 @@ function createStore(name) {
 async function jsonlLines(name) {
   const file = await readFile(path.join(temp, name, "memory.jsonl"), "utf8");
   return file.trim() ? file.trim().split("\n") : [];
+}
+
+function pathmarkHookCommandCount(hooksText) {
+  const parsed = JSON.parse(hooksText);
+  return Object.values(parsed.hooks)
+    .flatMap((groups) => groups.flatMap((group) => group.hooks ?? []))
+    .filter((hook) => typeof hook.command === "string" && /\bpathmark\b[\s\S]*\bcodex\b/.test(hook.command)).length;
 }
