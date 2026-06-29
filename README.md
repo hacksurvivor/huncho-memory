@@ -56,7 +56,7 @@ Pathmark exposes these MCP tools:
 ## Quick Start
 
 ```bash
-npm install -g github:hacksurvivor/pathmark
+npm install -g --install-links=true github:hacksurvivor/pathmark
 ```
 
 Then add the MCP server to your client.

@@ -9,7 +9,7 @@ Use one local memory store from Codex, Claude Code, opencode, Gemini CLI, OpenCl
 Install:
 
 ```bash
-npm install -g github:hacksurvivor/pathmark
+npm install -g --install-links=true github:hacksurvivor/pathmark
 ```
 
 MCP server command:

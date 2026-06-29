@@ -3,7 +3,7 @@
 Install:
 
 ```bash
-npm install -g github:hacksurvivor/pathmark
+npm install -g --install-links=true github:hacksurvivor/pathmark
 ```
 
 Register the MCP server:
