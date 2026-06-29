@@ -191,6 +191,8 @@ function filterRecallResults(results, input) {
             return true;
         if (workspaceTag && tags.some((tag) => tag.startsWith("workspace:")))
             return tags.includes(workspaceTag);
+        if (workspaceTag && tags.some((tag) => tag.startsWith("project:")))
+            return false;
         const haystack = `${record.text} ${record.tags.join(" ")} ${record.source}`.toLowerCase();
         return specificTerms.some((term) => haystack.includes(term.toLowerCase()));
     });

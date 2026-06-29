@@ -670,7 +670,7 @@ try {
   });
   assert.equal(projectRecall.includes("alpha workspace behavior"), true);
 
-  createStore("workspace-recall");
+  const workspaceRecallStore = createStore("workspace-recall");
   await prompt({
     cwd: "/tmp/api",
     session_id: "api-session-a",
@@ -681,18 +681,28 @@ try {
     session_id: "api-session-b",
     prompt: "Remember gamma endpoint behavior.",
   });
+  await workspaceRecallStore.addRecord({
+    id: deterministicId(["workspace-recall", "legacy-project-only"]),
+    kind: "memory",
+    text: "Legacy project-only api note must not leak.",
+    tags: ["codex-raw", "codex-session", "role-user", "session:other", "project:api"],
+    source: "codex:session:other",
+    createdAt: "2026-06-29T00:55:00.000Z",
+  });
   const tmpApiRecall = await recall({
     cwd: "/tmp/api",
     session_id: "api-session-c",
   });
   assert.equal(tmpApiRecall.includes("beta endpoint behavior"), true);
   assert.equal(tmpApiRecall.includes("gamma endpoint behavior"), false);
+  assert.equal(tmpApiRecall.includes("Legacy project-only api note"), false);
   const otherApiRecall = await recall({
     cwd: "/other/api",
     session_id: "api-session-d",
   });
   assert.equal(otherApiRecall.includes("gamma endpoint behavior"), true);
   assert.equal(otherApiRecall.includes("beta endpoint behavior"), false);
+  assert.equal(otherApiRecall.includes("Legacy project-only api note"), false);
 
   console.log("Codex adapter base tests passed");
 } finally {
