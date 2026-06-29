@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { observe, prompt, writeback } from "../dist/codex/capture.js";
+import { observe, prompt, recall, writeback } from "../dist/codex/capture.js";
 import { readCursor, writeCursor } from "../dist/codex/cursor.js";
 import { summarizeToolUse } from "../dist/codex/tool-summary.js";
 import { readCodexTranscript } from "../dist/codex/transcript.js";
@@ -186,6 +186,10 @@ try {
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "npm test" } }),
     "ran: npm test",
   );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "pathmark codex status" } }),
+    "",
+  );
   assert.equal(summarizeToolUse({ tool_name: "mcp__pathmark__search_memory", tool_input: {} }), "");
   assert.equal(
     summarizeToolUse({
@@ -226,6 +230,93 @@ try {
   assert.ok(redactedRecord);
   assert.equal(redactedRecord.text.includes("sk-testsecret123"), false);
   assert.equal(redactedRecord.text.includes("[REDACTED]"), true);
+
+  const duplicatePrompt = "Remember that Pathmark uses hybrid capture.";
+  const duplicateTranscript = path.join(temp, "duplicate-transcript.jsonl");
+  await writeFile(
+    duplicateTranscript,
+    [
+      JSON.stringify({
+        timestamp: "2026-06-29T00:00:04.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: duplicatePrompt }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-29T00:00:05.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "ok" }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-29T00:00:06.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "do it" }],
+        },
+      }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  await prompt({ session_id: "dedupe-session", prompt: duplicatePrompt });
+  await writeback({ session_id: "dedupe-session", transcript_path: duplicateTranscript });
+  const dedupeRecords = await captureStore.all();
+  const duplicateUserRecords = dedupeRecords.filter(
+    (record) =>
+      record.source === "codex:session:dedupe-session" &&
+      record.tags.includes("role-user") &&
+      record.text === duplicatePrompt,
+  );
+  assert.equal(duplicateUserRecords.length, 1);
+  assert.equal(
+    dedupeRecords.some(
+      (record) =>
+        record.source === "codex:session:dedupe-session" &&
+        record.tags.includes("role-user") &&
+        (record.text === "ok" || record.text === "do it"),
+    ),
+    false,
+  );
+
+  const recallStore = createStore("recall");
+  const recallRecordId = deterministicId(["recall", "long"]);
+  const recallTail = "tail-should-not-appear";
+  await recallStore.addRecord({
+    id: deterministicId(["recall", "unrelated"]),
+    kind: "memory",
+    text: "Generic raw captured turn.",
+    tags: ["codex-raw", "codex-session", "role-user", "session:other"],
+    source: "codex:session:other",
+    createdAt: "2026-06-29T00:00:07.000Z",
+  });
+  await recallStore.addRecord({
+    id: recallRecordId,
+    kind: "memory",
+    text: `Huncho project decision: OPENAI_API_KEY=sk-recallsecret ${"detail ".repeat(80)} ${recallTail}`,
+    tags: ["codex-raw", "codex-session", "role-user", "session:recall-session"],
+    source: "codex:session:recall-session",
+    createdAt: "2026-06-29T00:00:08.000Z",
+  });
+  const recallOutput = await recall({
+    cwd: "/Users/mac/Coding /Codex/huncho",
+    session_id: "recall-session",
+  });
+  assert.equal(recallOutput.includes("Generic raw captured turn."), false);
+  assert.equal(recallOutput.includes("sk-recallsecret"), false);
+  assert.equal(recallOutput.includes("[REDACTED]"), true);
+  assert.equal(recallOutput.includes(recallTail), false);
+  assert.equal(recallOutput.includes(recallRecordId), false);
+  assert.equal(recallOutput.includes("codex-session"), false);
+  assert.equal(recallOutput.includes("Store:"), true);
+  assert.equal(recallOutput.includes("mcp__pathmark__chat"), true);
 
   console.log("Codex adapter base tests passed");
 } finally {

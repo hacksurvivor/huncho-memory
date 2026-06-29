@@ -1,3 +1,4 @@
+import path from "node:path";
 import { loadConfig } from "../config.js";
 import { deterministicId } from "../ids.js";
 import { redactSecrets } from "../redact.js";
@@ -19,11 +20,14 @@ export interface CodexHookInput {
 const TRIVIAL_PROMPT = /^(?:y|n|yes|no|ok|okay|sure|thanks|yep|nope|continue|go ahead|do it|proceed)\.?$/i;
 const MEMORY_CUE =
   /\b(?:before|previous|previously|earlier|last time|remember|memory|context|history|decided|decision|same as|again|preference|prefer|repo|project)\b/i;
+const GENERIC_RECALL_TOKENS = new Set(["codex", "coding", "users", "user", "mac", "home", "documents"]);
+const STABLE_RECALL_TERMS = ["project", "decisions", "preferences"];
+const RECALL_TEXT_LIMIT = 240;
 
 export async function recall(input: CodexHookInput): Promise<string> {
   const config = loadConfig();
   const store = new PathmarkStore(config);
-  const query = [input.cwd, input.session_id, "project decisions preferences"].filter(isNonEmptyString).join(" ");
+  const query = recallQuery(input);
 
   try {
     const results = await store.search({ query, limit: 8 });
@@ -35,7 +39,7 @@ export async function recall(input: CodexHookInput): Promise<string> {
 
 export async function prompt(input: CodexHookInput): Promise<string> {
   const text = input.prompt?.trim() ?? "";
-  if (!text || TRIVIAL_PROMPT.test(text)) return "";
+  if (shouldSkipUserPrompt(text)) return "";
 
   try {
     await saveCapturedRecord({
@@ -86,6 +90,7 @@ export async function writeback(input: CodexHookInput): Promise<string> {
     const freshTurns = turns.slice(cursor);
 
     for (const turn of freshTurns) {
+      if (turn.role === "user" && shouldSkipUserPrompt(turn.text)) continue;
       await store.addRecord(
         capturedRecord({
           sessionId: session,
@@ -128,9 +133,11 @@ function capturedRecord(input: {
   const roleTag = `role-${input.role}`;
   const tags = ["codex-raw", "codex-session", roleTag, `session:${input.sessionId}`];
   if (redacted.redacted) tags.push("redacted");
+  const normalizedText = normalizeCapturedText(redacted.text);
+  const stablePart = input.role === "user" ? normalizedText : (input.stablePart ?? input.at);
 
   return {
-    id: deterministicId(["codex", input.sessionId, input.role, input.stablePart ?? input.at, redacted.text]),
+    id: deterministicId(["codex", input.sessionId, input.role, stablePart, normalizedText]),
     kind: "memory",
     text: redacted.text,
     tags,
@@ -156,16 +163,44 @@ function summarizeResults(results: SearchResult[]): string {
   return results
     .map((result, index) => {
       const record = result.record;
-      const tags = record.tags.length > 0 ? ` tags=${record.tags.join(",")}` : "";
-      return `${index + 1}. ${record.kind} ${record.id} (${record.createdAt}${tags})\n${record.text}`;
+      const redacted = redactSecrets(record.text);
+      return `${index + 1}. ${record.kind}: ${truncate(redacted.text, RECALL_TEXT_LIMIT)}`;
     })
     .join("\n");
+}
+
+function recallQuery(input: CodexHookInput): string {
+  const cwdTerms = recallTermsFromCwd(input.cwd);
+  const session = input.session_id?.trim();
+  const sessionTerms = session && !GENERIC_RECALL_TOKENS.has(session.toLowerCase()) ? [session] : [];
+  return [...new Set([...cwdTerms, ...sessionTerms, ...STABLE_RECALL_TERMS])].join(" ");
+}
+
+function recallTermsFromCwd(cwd: string | undefined): string[] {
+  if (!cwd?.trim()) return [];
+  const basename = path.basename(cwd.trim());
+  return basename
+    .toLowerCase()
+    .split(/[^a-z0-9_-]+/)
+    .map((term) => term.trim())
+    .filter((term) => term.length > 1 && !GENERIC_RECALL_TOKENS.has(term));
 }
 
 function sessionId(input: CodexHookInput): string {
   return input.session_id?.trim() || input.cwd?.trim() || "codex";
 }
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
+function shouldSkipUserPrompt(text: string): boolean {
+  const trimmed = text.trim();
+  return !trimmed || TRIVIAL_PROMPT.test(trimmed);
+}
+
+function normalizeCapturedText(text: string): string {
+  return text.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function truncate(text: string, limit: number): string {
+  const normalized = text.trim().replace(/\s+/g, " ");
+  if (normalized.length <= limit) return normalized;
+  return `${normalized.slice(0, Math.max(0, limit - 3)).trimEnd()}...`;
 }

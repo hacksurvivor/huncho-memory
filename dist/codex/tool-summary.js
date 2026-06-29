@@ -25,6 +25,8 @@ export function summarizeToolUse(input) {
         const command = shellCommand(input.tool_input).trim();
         if (!command)
             return "";
+        if (isPathmarkShellCommand(command))
+            return "";
         if (TRIVIAL_COMMANDS.some((trivial) => command === trivial || command.startsWith(`${trivial} `))) {
             return "";
         }
@@ -69,6 +71,13 @@ function changedFiles(patch) {
         ...[...patch.matchAll(/^\+\+\+ b\/(.+)$/gm)].map((match) => match[1]),
     ];
     return [...new Set(files.map((file) => file.trim()).filter((file) => file && file !== "/dev/null"))];
+}
+function isPathmarkShellCommand(command) {
+    const firstCommand = command.trim().split(/\s*(?:&&|\|\||;)\s*/, 1)[0] ?? "";
+    const withoutEnv = firstCommand.replace(/^env\s+(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*/, "");
+    return (/^pathmark(?:\s|$)/.test(withoutEnv) ||
+        /^npx(?:\s+(?:--yes|-y))*\s+pathmark(?:\s|$)/.test(withoutEnv) ||
+        /^node(?:\s+--?[^\s]+)*\s+\S*pathmark\S*(?:\s|$)/.test(withoutEnv));
 }
 function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
