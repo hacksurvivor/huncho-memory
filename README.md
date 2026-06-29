@@ -1,12 +1,14 @@
 # Pathmark Memory
 
-One local memory layer across every AI coding agent you use.
+One memory for every coding agent on your machine.
 
-Pathmark Memory gives Codex, Claude Code, opencode, Gemini CLI, OpenClaw, Hermes Agent, Grok-compatible clients, Cursor, Claude Desktop, and other MCP-capable tools the same durable local context. Switch harnesses without starting from zero: decisions, preferences, project notes, and saved conclusions live in one inspectable store you own.
+Use Codex for a fix, Claude Code for review, opencode for cleanup, and Gemini CLI for a second pass. Pathmark gives each harness the same local context. Decisions, preferences, project notes, and conclusions land in one JSONL store. The next agent can pick them up without a recap.
 
-## Why this exists
+## Why Pathmark
 
-Most agent memory systems are tied to one product, one hosted backend, or one subscription. Pathmark is intentionally small:
+AI coding agents trap useful context inside their own sessions. You switch tools and spend the first prompt rebuilding history.
+
+Pathmark moves that context into a local MCP server:
 
 - Local JSONL store by default.
 - Standard MCP tools instead of a proprietary client.
@@ -16,27 +18,25 @@ Most agent memory systems are tied to one product, one hosted backend, or one su
 - Optional OpenAI-compatible API bridge for Kimi, GLM, OpenRouter, local gateways, and other compatible providers.
 - Easy to inspect, back up, delete, or migrate.
 
-Pathmark is provider-neutral. Codex is one optional synthesis preset, but the core server works with any MCP client that can use local tools.
+Pathmark stays provider-neutral. Codex gets one optional synthesis preset. The core server works with any MCP client that can use local tools.
 
 ## Cross-Harness Memory
 
-Most coding agents learn context inside their own silo. Codex remembers one set of things, Claude Code another, opencode another, and switching tools means paying the context tax again.
+Codex remembers one set of things. Claude Code learns another. opencode starts cold. Pathmark gives them one shared trail.
 
-Pathmark makes memory a local substrate instead:
+Point each harness at the same store:
 
 ```text
-Codex ─┐
-Claude Code ─┤
-opencode ────┤
-Gemini CLI ──┼── Pathmark MCP ── ~/.pathmark/memory/memory.jsonl
-OpenClaw ────┤
-Hermes ──────┤
-Cursor ──────┘
+Codex       \
+Claude Code \
+opencode     >  Pathmark MCP  >  ~/.pathmark/memory/memory.jsonl
+Gemini CLI  /
+Cursor     /
 ```
 
 Install Pathmark in each harness and point all of them at the same `PATHMARK_STORE_DIR`. Any tool can save context with `remember` or `create_conclusion`; any other tool can later recover it with `search_memory`, `get_context`, or `ask_memory`.
 
-That makes Pathmark a memory bus for your AI coding workflow, not another agent runtime.
+Pathmark sits below the agents as a memory bus for your coding workflow.
 
 ## Tools
 
@@ -61,7 +61,7 @@ npm install -g github:hacksurvivor/pathmark
 
 Then add the MCP server to your client.
 
-The npm package name `pathmark` is currently available, but this first release is GitHub-only until npm publishing is explicitly done.
+Install from GitHub today. The `pathmark` npm name remains available for a later npm release.
 
 See [docs/compatibility.md](docs/compatibility.md) for Codex, Claude Code, opencode, Gemini CLI, OpenClaw, Hermes Agent, Grok CLI, Kimi, GLM, and generic MCP setups.
 
@@ -219,13 +219,9 @@ Deletes are soft deletes: the record gets a `deletedAt` timestamp.
 
 ## Positioning
 
-Pathmark is not trying to be a full agent platform. It is the memory layer: a small MCP server that gives agents a persistent working memory the user owns.
-
-The public hook is simple:
+Pathmark gives your agents a shared working memory that stays on your machine.
 
 > Switch agents. Keep the context.
-
-Second hook:
 
 > Bring your own subscription. Keep your memory local.
 

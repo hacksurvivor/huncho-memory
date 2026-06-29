@@ -1,8 +1,8 @@
 # Compatibility
 
-Pathmark is a stdio MCP server. It works with any host that can launch a local command and speak Model Context Protocol over stdin/stdout.
+Pathmark is a stdio MCP server. Any host that can launch a local command and speak Model Context Protocol over stdin/stdout can use it.
 
-The main product promise is cross-harness memory: Codex, Claude Code, opencode, Gemini CLI, OpenClaw, Hermes Agent, Cursor, and other MCP-capable clients can all read and write the same local memory store.
+Use one local memory store from Codex, Claude Code, opencode, Gemini CLI, OpenClaw, Hermes Agent, Cursor, and any other MCP-capable client.
 
 ## The Core Contract
 
@@ -25,7 +25,7 @@ PATHMARK_STORE_DIR=~/.pathmark/memory
 PATHMARK_SYNTHESIS_PROVIDER=client
 ```
 
-With `client`, the MCP host's own model reads the returned memory context and writes the answer. This is the best default for Codex, Claude Code, opencode, Gemini CLI, Hermes Agent, OpenClaw, Grok-compatible clients, Cursor, and Claude Desktop.
+With `client`, the MCP host's own model reads the returned memory context and writes the answer. Use this default for Codex, Claude Code, opencode, Gemini CLI, Hermes Agent, OpenClaw, Grok-compatible clients, Cursor, and Claude Desktop.
 
 Use the same `PATHMARK_STORE_DIR` in every harness when you want shared context across tools.
 
@@ -40,7 +40,7 @@ That file is the shared durable memory. Each harness can call the same tools:
 - `search_memory` and `get_context` to recover relevant context.
 - `ask_memory` to retrieve context and optionally synthesize an answer.
 
-Today, Pathmark provides the shared store and MCP tool surface. Automatic transcript capture depends on harness-specific hooks and importers; those belong in the installer/adapter roadmap.
+Pathmark provides the shared store and MCP tool surface today. Harness-specific hooks and importers will add automatic transcript capture.
 
 ## Client Matrix
 
@@ -55,7 +55,7 @@ Today, Pathmark provides the shared store and MCP tool surface. Automatic transc
 | Hermes Agent | stdio MCP server if MCP is enabled | Add Pathmark to the agent's MCP server list; keep memory local in `~/.pathmark`. |
 | OpenClaw | stdio MCP server if MCP tools are enabled | Register Pathmark as a local MCP tool server. |
 | Grok CLI / Grok Build | stdio MCP server when supported by the harness | If the Grok surface has MCP config, add Pathmark as a stdio server. Otherwise use `command` mode. |
-| Kimi models | MCP through a host, or `openai-compatible` / `command` synthesis | Raw models do not host MCP by themselves; the agent harness does. |
+| Kimi models | MCP through a host, or `openai-compatible` / `command` synthesis | The agent harness provides MCP for raw models. |
 | GLM / Z.ai models | MCP through a host, or `openai-compatible` / `command` synthesis | Use an MCP-capable client, API gateway, or local CLI. |
 | Local models | MCP through a host, or `command` / `openai-compatible` synthesis | Works with Ollama/LiteLLM/local routers when exposed through CLI or compatible API. |
 
@@ -96,7 +96,7 @@ If a client uses `command` plus `args`, use:
 codex mcp add pathmark -- pathmark
 ```
 
-Optional Codex-backed synthesis, useful when the MCP client cannot synthesize but Codex CLI is authenticated locally:
+Optional Codex-backed synthesis works when the MCP client cannot synthesize and Codex CLI has local auth:
 
 ```bash
 PATHMARK_SYNTHESIS_PROVIDER=codex
@@ -179,7 +179,7 @@ If the harness supports MCP, add Pathmark as a local stdio MCP server:
 }
 ```
 
-If the harness does not support MCP but has a local CLI, use command synthesis from another MCP client:
+Harnesses with a local CLI can use command synthesis from another MCP client:
 
 ```bash
 PATHMARK_SYNTHESIS_PROVIDER=command
@@ -201,10 +201,8 @@ PATHMARK_OPENAI_MODEL=...
 
 This is provider-neutral. It calls `POST /chat/completions` and parses `choices[0].message.content`.
 
-## What Pathmark Does Not Assume
+## Boundaries
 
-- It does not assume Codex.
-- It does not assume Claude.
-- It does not require a cloud memory account.
-- It does not require an API key for normal memory save/search/context tools.
-- It does not make raw models "MCP-capable"; the host or harness must provide MCP.
+- Pathmark expects the host or harness to provide MCP.
+- Raw models need an MCP-capable harness, a local CLI, or an OpenAI-compatible endpoint.
+- Memory save, search, and context tools work without a cloud account or model API key.
