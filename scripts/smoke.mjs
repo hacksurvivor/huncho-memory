@@ -63,7 +63,7 @@ child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/ini
 
 const tools = await request("tools/list");
 const toolNames = tools.tools.map((tool) => tool.name);
-for (const required of ["remember", "search_memory", "get_context", "ask_memory"]) {
+for (const required of ["remember", "search_memory", "get_context", "ask_memory", "chat"]) {
   if (!toolNames.includes(required)) {
     throw new Error(`Missing expected tool: ${required}`);
   }
@@ -89,6 +89,19 @@ const search = await request("tools/call", {
 const text = search.content?.[0]?.text ?? "";
 if (!text.includes("Pathmark smoke test memory")) {
   throw new Error("Search did not return saved memory");
+}
+
+const chat = await request("tools/call", {
+  name: "chat",
+  arguments: {
+    question: "What did the MCP smoke test save?",
+    limit: 3,
+  },
+});
+
+const chatText = chat.content?.[0]?.text ?? "";
+if (!chatText.includes("Pathmark smoke test memory")) {
+  throw new Error("Chat did not return saved memory context");
 }
 
 child.kill("SIGTERM");

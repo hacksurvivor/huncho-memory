@@ -51,6 +51,7 @@ Pathmark exposes these MCP tools:
 | `list_conclusions` | List saved conclusions. |
 | `delete_memory` | Soft-delete a memory or conclusion by id. |
 | `ask_memory` | Return relevant context, or synthesize with `PATHMARK_CHAT_COMMAND` if configured. |
+| `chat` | Chat-compatible alias for `ask_memory`; returns the retrieved context so the client can show what was used. |
 | `get_config` | Show local store configuration. |
 
 ## Quick Start

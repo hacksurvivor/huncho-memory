@@ -105,7 +105,18 @@ server.registerTool("ask_memory", {
         question: z.string().min(1),
         limit: z.number().int().min(1).max(30).optional(),
     },
-}, async ({ question, limit }) => {
+}, async ({ question, limit }) => answerFromMemory(question, limit));
+server.registerTool("chat", {
+    title: "Chat",
+    description: "Ask Pathmark memory a question. Returns the exact retrieved context so the MCP client can show what memory was used.",
+    inputSchema: {
+        question: z.string().min(1),
+        limit: z.number().int().min(1).max(30).optional(),
+    },
+}, async ({ question, limit }) => answerFromMemory(question, limit));
+await store.ensureReady();
+await server.connect(new StdioServerTransport());
+async function answerFromMemory(question, limit) {
     const results = await store.search({ query: question, limit });
     const answer = await synthesizeWithCommand({ config, question, context: results });
     return jsonText({
@@ -114,7 +125,5 @@ server.registerTool("ask_memory", {
         context: summarizeSearch(results),
         records: results.map((result) => result.record),
     });
-});
-await store.ensureReady();
-await server.connect(new StdioServerTransport());
+}
 //# sourceMappingURL=index.js.map
