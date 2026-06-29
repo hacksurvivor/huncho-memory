@@ -110,9 +110,10 @@ function isTrivialShellCommand(command) {
 }
 function hasMutationShellMarker(command) {
     return (/\|\s*xargs\b/.test(command) ||
+        /\|\s*tee\b/.test(command) ||
         command.includes(">") ||
         command.includes("<<") ||
-        /\bsed\s+[^|;&]*-i(?:\s|$)/.test(command) ||
+        /\bsed\b[^|;&]*\s-i(?:\S*)?(?:\s|$)/.test(command) ||
         /\bfind\b[\s\S]*(?:\s-delete\b|\s-exec\b)/.test(command));
 }
 function isRecord(value) {

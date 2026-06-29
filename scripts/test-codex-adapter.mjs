@@ -203,6 +203,30 @@ try {
     true,
   );
   assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg TODO src | tee todo.txt" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "cat input | tee output" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "sed -i.bak 's/a/b/' file" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "sed -i'' 's/a/b/' file" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "cat <<EOF > file\nvalue\nEOF" } }).startsWith(
       "ran:",
     ),
