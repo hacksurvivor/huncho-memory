@@ -1,6 +1,6 @@
 {
   "name": "pathmark",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cross-harness local memory for Codex, Claude Code, opencode, Cursor, Gemini CLI, and other MCP-capable AI agents.",
   "type": "module",
   "bin": {
@@ -13,7 +13,7 @@
     "SECURITY.md",
     "LICENSE",
     "examples",
-    "scripts/import-honcho.mjs"
+    "scripts/import-legacy-memory.mjs"
   ],
   "scripts": {
     "build": "tsc",
@@ -22,7 +22,7 @@
     "test": "npm run build && npm run smoke && npm run test:setup && npm run test:codex-adapter",
     "test:setup": "npm run build && node scripts/test-setup.mjs",
     "test:codex-adapter": "npm run build && node scripts/test-codex-adapter.mjs",
-    "import:honcho": "node scripts/import-honcho.mjs",
+    "import:legacy": "node scripts/import-legacy-memory.mjs",
     "prepack": "npm run build"
   },
   "keywords": [

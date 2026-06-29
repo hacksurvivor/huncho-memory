@@ -7,7 +7,7 @@ const USAGE = "Usage: pathmark codex <install|uninstall|status|recall|prompt|obs
 export async function runCodexCommand(args) {
     const [command, ...rest] = args;
     if (command === "install") {
-        await installPathmarkHooks({ replaceHoncho: rest.includes("--replace-honcho") });
+        await installPathmarkHooks({ replaceLegacyHooks: rest.includes("--replace-legacy-hooks") });
         await installPathmarkMcp();
         console.log("Installed Pathmark Codex hooks and MCP server.");
         return;
@@ -61,7 +61,7 @@ async function printStatus() {
         pathmarkHooksInstalled: hooks.pathmark,
         pathmarkMcpRegistered: mcp.installed,
         codexHooksFeatureEnabled: mcp.hooksFeatureEnabled,
-        honchoHooksPresent: hooks.honcho,
+        legacyHooksPresent: hooks.legacy,
         storeDir: config.storeDir,
         memoryFile: config.memoryFile,
         recordCount,

@@ -8,8 +8,6 @@ const INJECTED_TAGS = [
     "plugins_instructions",
     "skills_instructions",
     "collaboration_mode",
-    "honcho-memory",
-    "honcho-memory-nudge",
     "pathmark-memory",
     "pathmark-memory-nudge",
 ];
@@ -85,6 +83,8 @@ function collectText(content) {
 }
 function isInjectedContext(text) {
     const trimmed = text.trimStart();
+    if (/^<[a-z0-9-]+-memory(?:-nudge)?(?:\s|>)/i.test(trimmed))
+        return true;
     return INJECTED_TAGS.some((tag) => startsWithTag(trimmed, tag));
 }
 function startsWithTag(text, tag) {

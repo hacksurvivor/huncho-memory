@@ -15,7 +15,7 @@ codex mcp add pathmark -- pathmark
 Enable Codex auto-capture hooks:
 
 ```bash
-pathmark codex install --replace-honcho
+pathmark codex install --replace-legacy-hooks
 ```
 
 Check status:

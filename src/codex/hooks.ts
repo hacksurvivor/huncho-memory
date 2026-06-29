@@ -6,7 +6,7 @@ const PATHMARK_VERBS = ["recall", "prompt", "observe", "writeback"];
 const PATHMARK_PATTERN = new RegExp(
   `\\bpathmark\\b[\\s\\S]*\\bcodex\\b[\\s\\S]*\\b(?:${PATHMARK_VERBS.join("|")})\\b`,
 );
-const HONCHO_PATTERN = /(?:codex-honcho|[/.]honcho[/\\]codex-honcho\.mjs)/i;
+const LEGACY_PATTERN = /(?:codex-legacy|legacy-memory-adapter|codex-memory-bridge)/i;
 
 interface HookCommand {
   type?: string;
@@ -29,17 +29,17 @@ interface HooksFile {
 
 export interface HookStatus {
   pathmark: boolean;
-  honcho: boolean;
+  legacy: boolean;
 }
 
 export async function installPathmarkHooks(
-  options: { replaceHoncho?: boolean; hooksPath?: string } = {},
+  options: { replaceLegacyHooks?: boolean; hooksPath?: string } = {},
 ): Promise<void> {
   const file = await readHooksFile(options.hooksPath);
   await backupHooksFile(options.hooksPath);
   const stripped = stripOwnedHooks(
     file,
-    (command) => PATHMARK_PATTERN.test(command) || Boolean(options.replaceHoncho && HONCHO_PATTERN.test(command)),
+    (command) => PATHMARK_PATTERN.test(command) || Boolean(options.replaceLegacyHooks && LEGACY_PATTERN.test(command)),
   );
   await writeHooksFile(addPathmarkHooks(stripped), options.hooksPath);
 }
@@ -54,7 +54,7 @@ export async function hookStatus(hooksPath?: string): Promise<HookStatus> {
   const commands = hookCommands(await readHooksFile(hooksPath));
   return {
     pathmark: commands.some((command) => PATHMARK_PATTERN.test(command)),
-    honcho: commands.some((command) => HONCHO_PATTERN.test(command)),
+    legacy: commands.some((command) => LEGACY_PATTERN.test(command)),
   };
 }
 

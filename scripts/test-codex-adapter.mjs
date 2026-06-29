@@ -102,7 +102,7 @@ try {
   const conclusionId = deterministicId(["ranking", "conclusion"]);
   const toolId = deterministicId(["ranking", "tool"]);
   const summaryId = deterministicId(["ranking", "summary"]);
-  const honchoSummaryId = deterministicId(["ranking", "honcho-summary"]);
+  const legacySummaryId = deterministicId(["ranking", "legacy-summary"]);
   await rankingStore.addRecord({
     id: conclusionId,
     kind: "conclusion",
@@ -128,10 +128,10 @@ try {
     createdAt: "2026-06-29T00:00:02.000Z",
   });
   await rankingStore.addRecord({
-    id: honchoSummaryId,
+    id: legacySummaryId,
     kind: "memory",
     text: "shared capture",
-    tags: ["codex-summary", "honcho-import"],
+    tags: ["codex-summary", "legacy-import"],
     source: "test",
     createdAt: "2026-06-29T00:00:03.000Z",
   });
@@ -144,10 +144,10 @@ try {
 
   const summaryResults = await rankingStore.search({ query: "shared", limit: 10 });
   const summaryScore = summaryResults.find((result) => result.record.id === summaryId)?.score;
-  const honchoSummaryScore = summaryResults.find((result) => result.record.id === honchoSummaryId)?.score;
+  const legacySummaryScore = summaryResults.find((result) => result.record.id === legacySummaryId)?.score;
   assert.equal(typeof summaryScore, "number");
-  assert.equal(typeof honchoSummaryScore, "number");
-  assert.equal(summaryScore - honchoSummaryScore, 1);
+  assert.equal(typeof legacySummaryScore, "number");
+  assert.equal(summaryScore - legacySummaryScore, 1);
 
   const compatStore = createStore("compat");
   const compatRecord = await compatStore.add({
@@ -897,7 +897,7 @@ try {
   await recallStore.addRecord({
     id: recallRecordId,
     kind: "memory",
-    text: `Huncho recall relevant project decision: OPENAI_API_KEY=${["sk", "recallsecret"].join("-")} ${"detail ".repeat(80)} ${recallTail}`,
+    text: `Legacy recall relevant project decision: OPENAI_API_KEY=${["sk", "recallsecret"].join("-")} ${"detail ".repeat(80)} ${recallTail}`,
     tags: ["codex-raw", "codex-session", "role-user", "session:recall-session"],
     source: "codex:session:recall-session",
     createdAt: "2026-06-29T00:00:09.000Z",
@@ -909,7 +909,7 @@ try {
   assert.equal(recallOutput.includes("Generic raw captured turn."), false);
   assert.equal(recallOutput.includes("Other project decision from a different session"), false);
   assert.equal(recallOutput.includes("Other project decision filler"), false);
-  assert.equal(recallOutput.includes("Huncho recall relevant project decision"), true);
+  assert.equal(recallOutput.includes("Legacy recall relevant project decision"), true);
   assert.equal(recallOutput.includes(["sk", "recallsecret"].join("-")), false);
   assert.equal(recallOutput.includes("[REDACTED]"), true);
   assert.equal(recallOutput.includes(recallTail), false);
@@ -1037,9 +1037,9 @@ try {
   assert.equal(codexCursorDir(), path.join(installerStoreDir, "codex-cursors"));
   await mkdir(codexHomeDir, { recursive: true });
 
-  const honchoDataDir = path.join(temp, "honcho-data");
-  await mkdir(honchoDataDir, { recursive: true });
-  await writeFile(path.join(honchoDataDir, "memory.jsonl"), '{"kept":true}\n', "utf8");
+  const legacyDataDir = path.join(temp, "legacy-data");
+  await mkdir(legacyDataDir, { recursive: true });
+  await writeFile(path.join(legacyDataDir, "memory.jsonl"), '{"kept":true}\n', "utf8");
 
   const hooksPath = path.join(codexHomeDir, "hooks.json");
   await writeFile(
@@ -1057,7 +1057,7 @@ try {
             },
           ],
           UserPromptSubmit: [
-            { hooks: [{ type: "command", command: "node /home/user/.codex/honcho/codex-honcho.mjs prompt" }] },
+            { hooks: [{ type: "command", command: "node /home/user/.codex/legacy/codex-legacy.mjs prompt" }] },
             { hooks: [{ type: "command", command: "echo keep-me" }] },
           ],
           Stop: [{ hooks: [{ type: "command", command: "pathmark codex writeback" }] }],
@@ -1069,37 +1069,37 @@ try {
     ),
     "utf8",
   );
-  assert.deepEqual(await hookStatus(hooksPath), { pathmark: true, honcho: true });
-  await installPathmarkHooks({ replaceHoncho: true, hooksPath });
-  assert.deepEqual(await hookStatus(hooksPath), { pathmark: true, honcho: false });
+  assert.deepEqual(await hookStatus(hooksPath), { pathmark: true, legacy: true });
+  await installPathmarkHooks({ replaceLegacyHooks: true, hooksPath });
+  assert.deepEqual(await hookStatus(hooksPath), { pathmark: true, legacy: false });
   const firstInstalledHooksText = await readFile(hooksPath, "utf8");
   assert.equal(firstInstalledHooksText.includes("echo existing-session-start"), true);
   assert.equal(firstInstalledHooksText.includes("echo keep-me"), true);
   assert.equal(firstInstalledHooksText.includes("echo unrelated"), true);
-  assert.equal(firstInstalledHooksText.includes("codex-honcho"), false);
+  assert.equal(firstInstalledHooksText.includes("codex-legacy"), false);
   assert.equal(pathmarkHookCommandCount(firstInstalledHooksText), 5);
-  assert.equal((await readFile(path.join(honchoDataDir, "memory.jsonl"), "utf8")).includes('"kept":true'), true);
+  assert.equal((await readFile(path.join(legacyDataDir, "memory.jsonl"), "utf8")).includes('"kept":true'), true);
   assert.equal((await readdir(codexHomeDir)).some((name) => name.startsWith("hooks.json.backup-")), true);
 
-  await installPathmarkHooks({ replaceHoncho: true, hooksPath });
+  await installPathmarkHooks({ replaceLegacyHooks: true, hooksPath });
   assert.equal(await readFile(hooksPath, "utf8"), firstInstalledHooksText);
 
   await uninstallPathmarkHooks(hooksPath);
   const uninstalledHooksText = await readFile(hooksPath, "utf8");
-  assert.deepEqual(await hookStatus(hooksPath), { pathmark: false, honcho: false });
+  assert.deepEqual(await hookStatus(hooksPath), { pathmark: false, legacy: false });
   assert.equal(uninstalledHooksText.includes("echo existing-session-start"), true);
   assert.equal(uninstalledHooksText.includes("echo keep-me"), true);
   assert.equal(uninstalledHooksText.includes("echo unrelated"), true);
 
-  const preserveHonchoHooksPath = path.join(codexHomeDir, "preserve-honcho-hooks.json");
+  const preserveLegacyHooksPath = path.join(codexHomeDir, "preserve-legacy-hooks.json");
   await writeFile(
-    preserveHonchoHooksPath,
+    preserveLegacyHooksPath,
     JSON.stringify(
       {
         hooks: {
           UserPromptSubmit: [
-            { hooks: [{ type: "command", command: "node /home/user/.codex/honcho/codex-honcho.mjs prompt" }] },
-            { hooks: [{ type: "command", command: "echo keep-honcho-test" }] },
+            { hooks: [{ type: "command", command: "node /home/user/.codex/legacy/codex-legacy.mjs prompt" }] },
+            { hooks: [{ type: "command", command: "echo keep-legacy-test" }] },
           ],
         },
       },
@@ -1108,13 +1108,13 @@ try {
     ),
     "utf8",
   );
-  await installPathmarkHooks({ replaceHoncho: false, hooksPath: preserveHonchoHooksPath });
-  assert.deepEqual(await hookStatus(preserveHonchoHooksPath), { pathmark: true, honcho: true });
-  await uninstallPathmarkHooks(preserveHonchoHooksPath);
-  const preserveHonchoText = await readFile(preserveHonchoHooksPath, "utf8");
-  assert.deepEqual(await hookStatus(preserveHonchoHooksPath), { pathmark: false, honcho: true });
-  assert.equal(preserveHonchoText.includes("codex-honcho"), true);
-  assert.equal(preserveHonchoText.includes("echo keep-honcho-test"), true);
+  await installPathmarkHooks({ replaceLegacyHooks: false, hooksPath: preserveLegacyHooksPath });
+  assert.deepEqual(await hookStatus(preserveLegacyHooksPath), { pathmark: true, legacy: true });
+  await uninstallPathmarkHooks(preserveLegacyHooksPath);
+  const preserveLegacyText = await readFile(preserveLegacyHooksPath, "utf8");
+  assert.deepEqual(await hookStatus(preserveLegacyHooksPath), { pathmark: false, legacy: true });
+  assert.equal(preserveLegacyText.includes("codex-legacy"), true);
+  assert.equal(preserveLegacyText.includes("echo keep-legacy-test"), true);
 
   const configPath = path.join(codexHomeDir, "config.toml");
   await writeFile(
@@ -1200,17 +1200,17 @@ try {
 
   const cliCodexHome = path.join(temp, "cli-codex-home");
   const cliStoreDir = path.join(temp, "cli-store");
-  const cliHonchoDataDir = path.join(temp, "cli-honcho-data");
+  const cliLegacyDataDir = path.join(temp, "cli-legacy-data");
   await mkdir(cliCodexHome, { recursive: true });
-  await mkdir(cliHonchoDataDir, { recursive: true });
-  await writeFile(path.join(cliHonchoDataDir, "memory.jsonl"), '{"kept":true}\n', "utf8");
+  await mkdir(cliLegacyDataDir, { recursive: true });
+  await writeFile(path.join(cliLegacyDataDir, "memory.jsonl"), '{"kept":true}\n', "utf8");
   await writeFile(
     path.join(cliCodexHome, "hooks.json"),
     JSON.stringify(
       {
         hooks: {
           UserPromptSubmit: [
-            { hooks: [{ type: "command", command: "node /home/user/.codex/honcho/codex-honcho.mjs prompt" }] },
+            { hooks: [{ type: "command", command: "node /home/user/.codex/legacy/codex-legacy.mjs prompt" }] },
           ],
         },
       },
@@ -1231,12 +1231,12 @@ try {
   assert.equal(initialStatus.pathmarkHooksInstalled, false);
   assert.equal(initialStatus.pathmarkMcpRegistered, false);
   assert.equal(initialStatus.codexHooksFeatureEnabled, false);
-  assert.equal(initialStatus.honchoHooksPresent, true);
+  assert.equal(initialStatus.legacyHooksPresent, true);
   assert.equal(initialStatus.storeDir, cliStoreDir);
   assert.equal(initialStatus.memoryFile, path.join(cliStoreDir, "memory.jsonl"));
   assert.equal(typeof initialStatus.recordCount, "number");
 
-  const installRun = runCli(["install", "--replace-honcho"], { env: cliEnv });
+  const installRun = runCli(["install", "--replace-legacy-hooks"], { env: cliEnv });
   assert.equal(installRun.status, 0, installRun.stderr);
   assert.equal(installRun.stdout.includes("Installed Pathmark Codex hooks and MCP server."), true);
   const installedStatusRun = runCli(["status"], { env: cliEnv });
@@ -1245,9 +1245,9 @@ try {
   assert.equal(installedStatus.pathmarkHooksInstalled, true);
   assert.equal(installedStatus.pathmarkMcpRegistered, true);
   assert.equal(installedStatus.codexHooksFeatureEnabled, true);
-  assert.equal(installedStatus.honchoHooksPresent, false);
-  assert.equal((await readFile(path.join(cliCodexHome, "hooks.json"), "utf8")).includes("codex-honcho"), false);
-  assert.equal((await readFile(path.join(cliHonchoDataDir, "memory.jsonl"), "utf8")).includes('"kept":true'), true);
+  assert.equal(installedStatus.legacyHooksPresent, false);
+  assert.equal((await readFile(path.join(cliCodexHome, "hooks.json"), "utf8")).includes("codex-legacy"), false);
+  assert.equal((await readFile(path.join(cliLegacyDataDir, "memory.jsonl"), "utf8")).includes('"kept":true'), true);
 
   const promptRun = runCli(["prompt"], {
     env: cliEnv,
@@ -1335,8 +1335,8 @@ try {
   const uninstalledStatus = JSON.parse(uninstalledStatusRun.stdout);
   assert.equal(uninstalledStatus.pathmarkHooksInstalled, false);
   assert.equal(uninstalledStatus.pathmarkMcpRegistered, false);
-  assert.equal(uninstalledStatus.honchoHooksPresent, false);
-  assert.equal((await readFile(path.join(cliHonchoDataDir, "memory.jsonl"), "utf8")).includes('"kept":true'), true);
+  assert.equal(uninstalledStatus.legacyHooksPresent, false);
+  assert.equal((await readFile(path.join(cliLegacyDataDir, "memory.jsonl"), "utf8")).includes('"kept":true'), true);
 
   console.log("Codex adapter base tests passed");
 } finally {

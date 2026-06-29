@@ -93,7 +93,7 @@ codex mcp add pathmark -- pathmark
 Codex users can also enable auto-capture:
 
 ```bash
-pathmark codex install --replace-honcho
+pathmark codex install --replace-legacy-hooks
 ```
 
 ### Claude Code
@@ -156,18 +156,18 @@ Run directly:
 PATHMARK_STORE_DIR=.pathmark npm run dev
 ```
 
-## Migrate From Honcho
+## Import Legacy Memory
 
-Pathmark can import local `codex-honcho` JSONL memory without deleting or moving the Honcho store.
+Pathmark can import a compatible local JSONL memory store without deleting or moving the source files.
 
 ```bash
-npm run import:honcho
+npm run import:legacy -- --source-dir ~/old-codex-memory
 ```
 
 Defaults:
 
 ```text
-Honcho source:   ~/.honcho/codex/local
+Legacy source:   ~/.pathmark/legacy/codex
 Pathmark target: ~/.pathmark/memory/memory.jsonl
 ```
 
@@ -176,7 +176,7 @@ The importer creates a `memory.jsonl.backup-*` file before writing, uses determi
 Use a dry run first when migrating another machine:
 
 ```bash
-npm run import:honcho -- --dry-run
+npm run import:legacy -- --source-dir ~/old-codex-memory --dry-run
 ```
 
 ## Codex Auto-Capture
@@ -184,12 +184,12 @@ npm run import:honcho -- --dry-run
 Install Pathmark as the Codex memory adapter:
 
 ```bash
-pathmark codex install --replace-honcho
+pathmark codex install --replace-legacy-hooks
 ```
 
-This registers the Pathmark MCP server, enables Codex hooks, and removes old Honcho hook commands from Codex. It does not delete or move Honcho memory; data at `~/.honcho/codex/local` is preserved.
+This registers the Pathmark MCP server, enables Codex hooks, and removes old compatible hook commands from Codex. It does not delete or move memory files.
 
-Use `--replace-honcho` when you want Pathmark hooks to take over from `codex-honcho`. Without it, Pathmark installs alongside any existing Honcho hook commands.
+Use `--replace-legacy-hooks` when you want Pathmark hooks to take over from earlier compatible hook commands. Without it, Pathmark installs alongside existing hook commands.
 
 Check the adapter status:
 
@@ -197,7 +197,7 @@ Check the adapter status:
 pathmark codex status
 ```
 
-The status output is JSON and includes Pathmark hook state, MCP registration state, Honcho hook presence, the active store paths, and the current record count.
+The status output is JSON and includes Pathmark hook state, MCP registration state, legacy hook presence, the active store paths, and the current record count.
 
 Remove Pathmark hooks and MCP registration without deleting memory:
 

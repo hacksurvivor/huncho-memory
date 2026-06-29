@@ -191,7 +191,7 @@ function scorePriority(record: PathmarkRecord): number {
   if (record.tags.includes("role-user")) priority += 3;
   if (record.tags.includes("role-assistant")) priority += 2;
   if (record.tags.includes("role-tool")) priority -= 4;
-  if (record.tags.includes("honcho-import")) priority -= 1;
+  if (record.tags.some((tag) => tag.endsWith("-import"))) priority -= 1;
   return priority;
 }
 

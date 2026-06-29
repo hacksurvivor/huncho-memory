@@ -72,11 +72,11 @@ function setupGuide(target) {
             target,
             title: "Codex",
             summary: "Register Pathmark as a Codex MCP server and optionally enable Codex auto-capture hooks.",
-            commands: ["codex mcp add pathmark -- pathmark", "pathmark codex install --replace-honcho"],
+            commands: ["codex mcp add pathmark -- pathmark", "pathmark codex install --replace-legacy-hooks"],
             env,
             notes: [
                 "Use the install command when you want automatic Codex prompt/tool/transcript capture.",
-                "The --replace-honcho flag removes old Honcho hook commands but does not delete ~/.honcho/codex/local.",
+                "The --replace-legacy-hooks flag removes old Pathmark-compatible hook commands without deleting memory files.",
             ],
         };
     }

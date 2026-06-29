@@ -4,4 +4,4 @@ node_modules/
 .env
 .env.*
 !.env.example
-.huncho/
+.pathmark/

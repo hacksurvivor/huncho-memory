@@ -115,10 +115,10 @@ codex mcp add pathmark -- pathmark
 Enable auto-capture hooks:
 
 ```bash
-pathmark codex install --replace-honcho
+pathmark codex install --replace-legacy-hooks
 ```
 
-This removes old Honcho hook commands from Codex while preserving `~/.honcho/codex/local`.
+This removes old compatible hook commands from Codex without deleting memory files.
 
 Optional Codex-backed synthesis works when the MCP client cannot synthesize and Codex CLI has local auth:
 

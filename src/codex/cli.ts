@@ -12,7 +12,7 @@ export async function runCodexCommand(args: string[]): Promise<void> {
   const [command, ...rest] = args;
 
   if (command === "install") {
-    await installPathmarkHooks({ replaceHoncho: rest.includes("--replace-honcho") });
+    await installPathmarkHooks({ replaceLegacyHooks: rest.includes("--replace-legacy-hooks") });
     await installPathmarkMcp();
     console.log("Installed Pathmark Codex hooks and MCP server.");
     return;
@@ -80,7 +80,7 @@ async function printStatus(): Promise<void> {
         pathmarkHooksInstalled: hooks.pathmark,
         pathmarkMcpRegistered: mcp.installed,
         codexHooksFeatureEnabled: mcp.hooksFeatureEnabled,
-        honchoHooksPresent: hooks.honcho,
+        legacyHooksPresent: hooks.legacy,
         storeDir: config.storeDir,
         memoryFile: config.memoryFile,
         recordCount,

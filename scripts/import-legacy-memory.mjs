@@ -4,11 +4,11 @@ import { mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promi
 import os from "node:os";
 import path from "node:path";
 
-const DEFAULT_HONCHO_DIR = "~/.honcho/codex/local";
+const DEFAULT_LEGACY_DIR = "~/.pathmark/legacy/codex";
 const DEFAULT_PATHMARK_DIR = "~/.pathmark/memory";
 
 const args = parseArgs(process.argv.slice(2));
-const honchoDir = expandHome(args["honcho-dir"] ?? process.env.HONCHO_STORE_DIR ?? DEFAULT_HONCHO_DIR);
+const legacyDir = expandHome(args["source-dir"] ?? args["legacy-dir"] ?? process.env.PATHMARK_LEGACY_STORE_DIR ?? DEFAULT_LEGACY_DIR);
 const pathmarkDir = expandHome(args["pathmark-dir"] ?? process.env.PATHMARK_STORE_DIR ?? DEFAULT_PATHMARK_DIR);
 const memoryFile = path.join(pathmarkDir, "memory.jsonl");
 const dryRun = Boolean(args["dry-run"]);
@@ -25,7 +25,7 @@ const stats = {
   written: 0,
 };
 
-await assertDirectory(honchoDir, "Honcho store");
+await assertDirectory(legacyDir, "Legacy memory store");
 await mkdir(pathmarkDir, { recursive: true });
 await ensureFile(memoryFile);
 
@@ -54,7 +54,7 @@ if (!dryRun && newRecords.length > 0) {
   }
 
   const body = [...existingRecords.records, ...newRecords].map((record) => JSON.stringify(record)).join("\n");
-  const tmp = path.join(pathmarkDir, `.memory.import-honcho.${Date.now()}.tmp`);
+  const tmp = path.join(pathmarkDir, `.memory.import-legacy.${Date.now()}.tmp`);
   await writeFile(tmp, body ? `${body}\n` : "", "utf8");
   await rename(tmp, memoryFile);
 }
@@ -62,7 +62,7 @@ if (!dryRun && newRecords.length > 0) {
 console.log(
   JSON.stringify(
     {
-      honchoDir,
+      legacyDir,
       pathmarkDir,
       memoryFile,
       dryRun,
@@ -76,7 +76,7 @@ console.log(
 );
 
 async function importConclusions() {
-  const file = path.join(honchoDir, "conclusions.jsonl");
+  const file = path.join(legacyDir, "conclusions.jsonl");
   if (!(await exists(file))) return;
 
   const parsed = await readJsonl(file);
@@ -94,11 +94,11 @@ async function importConclusions() {
     if (redacted.changed) stats.redactedRecords += 1;
 
     imported.push({
-      id: deterministicId(`honcho:conclusion:${raw.id ?? text}`),
+      id: deterministicId(`legacy:conclusion:${raw.id ?? text}`),
       kind: "conclusion",
       text: redacted.text,
-      tags: ["honcho-conclusion", "honcho-import"],
-      source: "honcho:conclusions",
+      tags: ["legacy-conclusion", "legacy-import"],
+      source: "legacy:conclusions",
       createdAt: isoDate(raw.createdAt),
       updatedAt: isoDate(raw.createdAt),
     });
@@ -107,7 +107,7 @@ async function importConclusions() {
 }
 
 async function importSessions() {
-  const sessionsDir = path.join(honchoDir, "sessions");
+  const sessionsDir = path.join(legacyDir, "sessions");
   if (!(await exists(sessionsDir))) return;
 
   const files = (await readdir(sessionsDir)).filter((file) => file.endsWith(".jsonl")).sort();
@@ -130,11 +130,11 @@ async function importSessions() {
       if (redacted.changed) stats.redactedRecords += 1;
 
       imported.push({
-        id: deterministicId(`honcho:session:${session}:${index}:${role}:${text}`),
+        id: deterministicId(`legacy:session:${session}:${index}:${role}:${text}`),
         kind: "memory",
         text: redacted.text,
-        tags: ["honcho-import", "honcho-session", `role-${role}`],
-        source: `honcho:session:${session}`,
+        tags: ["legacy-import", "legacy-session", `role-${role}`],
+        source: `legacy:session:${session}`,
         createdAt: isoDate(raw.at),
         updatedAt: isoDate(raw.at),
       });

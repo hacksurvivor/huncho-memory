@@ -31,14 +31,14 @@ Expected:
 {
   "pathmarkHooksInstalled": true,
   "pathmarkMcpRegistered": true,
-  "honchoHooksPresent": false
+  "legacyHooksPresent": false
 }
 ```
 
 Confirm migrated memory remains present:
 
 ```bash
-test -d ~/.honcho/codex/local
+test -d ~/.pathmark/memory
 wc -l ~/.pathmark/memory/memory.jsonl
 ```
 

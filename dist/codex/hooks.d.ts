@@ -1,9 +1,9 @@
 export interface HookStatus {
     pathmark: boolean;
-    honcho: boolean;
+    legacy: boolean;
 }
 export declare function installPathmarkHooks(options?: {
-    replaceHoncho?: boolean;
+    replaceLegacyHooks?: boolean;
     hooksPath?: string;
 }): Promise<void>;
 export declare function uninstallPathmarkHooks(hooksPath?: string): Promise<void>;
