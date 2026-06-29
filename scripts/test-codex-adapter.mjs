@@ -474,6 +474,21 @@ try {
   assert.equal(recallOutput.includes("Store:"), true);
   assert.equal(recallOutput.includes("mcp__pathmark__chat"), true);
 
+  const noSignalStore = createStore("recall-no-signal");
+  await noSignalStore.addRecord({
+    id: deterministicId(["recall", "no-signal"]),
+    kind: "memory",
+    text: "Arbitrary recent memory must not appear without recall signals.",
+    tags: ["codex-raw", "codex-session", "role-user", "session:other"],
+    source: "codex:session:other",
+    createdAt: "2026-06-29T00:50:00.000Z",
+  });
+  const noSignalRecall = await recall({});
+  assert.equal(noSignalRecall.includes("Arbitrary recent memory must not appear"), false);
+  assert.equal(noSignalRecall.includes("No matching Pathmark memory found."), true);
+  assert.equal(noSignalRecall.includes("Store:"), true);
+  assert.equal(noSignalRecall.includes("mcp__pathmark__chat"), true);
+
   console.log("Codex adapter base tests passed");
 } finally {
   await rm(temp, { recursive: true, force: true });

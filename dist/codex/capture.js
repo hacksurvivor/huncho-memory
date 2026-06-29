@@ -18,6 +18,8 @@ export async function recall(input) {
     const config = loadConfig();
     const store = new PathmarkStore(config);
     const query = recallQuery(input);
+    if (!query)
+        return memoryBlock([], config.memoryFile);
     try {
         const results = await recallSearchResults(store, query, input);
         return memoryBlock(filterRecallResults(results, input).slice(0, 8), config.memoryFile);
