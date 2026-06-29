@@ -17,6 +17,7 @@ Confirm the tarball includes:
 - `dist/codex/cli.js`
 - `dist/codex/capture.js`
 - `dist/codex/hooks.js`
+- `assets/pathmark-hero.png`
 
 ## Live Codex Verification
 

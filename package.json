@@ -8,6 +8,7 @@
   },
   "files": [
     "dist",
+    "assets/pathmark-hero.png",
     "README.md",
     "SECURITY.md",
     "LICENSE",

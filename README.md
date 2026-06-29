@@ -2,6 +2,10 @@
 
 Stop re-explaining your repo each time you switch agents.
 
+<p align="center">
+  <img src="assets/pathmark-hero.png" alt="Pathmark local memory layer shared by Codex, Claude Code, opencode, and Gemini CLI" width="100%">
+</p>
+
 Pathmark gives Codex, Claude Code, opencode, Gemini CLI, Cursor, and any MCP-capable harness one local memory layer. Save decisions, project rules, preferences, and conclusions once. Use them from the next agent without pasting a recap.
 
 Your context stays on disk at `~/.pathmark/memory/memory.jsonl`. You do not need an account, hosted database, API key, or vendor backend to start.
