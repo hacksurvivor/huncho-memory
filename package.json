@@ -10,12 +10,14 @@
     "dist",
     "README.md",
     "LICENSE",
-    "examples"
+    "examples",
+    "scripts/import-honcho.mjs"
   ],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "smoke": "node scripts/smoke.mjs",
+    "import:honcho": "node scripts/import-honcho.mjs",
     "prepack": "npm run build"
   },
   "keywords": [

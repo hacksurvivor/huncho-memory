@@ -116,6 +116,29 @@ Run directly:
 PATHMARK_STORE_DIR=.pathmark npm run dev
 ```
 
+## Migrate From Honcho
+
+Pathmark can import local `codex-honcho` JSONL memory without deleting or moving the Honcho store.
+
+```bash
+npm run import:honcho
+```
+
+Defaults:
+
+```text
+Honcho source:   ~/.honcho/codex/local
+Pathmark target: ~/.pathmark/memory/memory.jsonl
+```
+
+The importer creates a `memory.jsonl.backup-*` file before writing, uses deterministic ids so reruns skip duplicates, and redacts obvious `KEY=...`, `TOKEN=...`, `PASSWORD=...`, and `Bearer ...` values.
+
+Use a dry run first when migrating another machine:
+
+```bash
+npm run import:honcho -- --dry-run
+```
+
 ## Configuration
 
 | Variable | Default | Description |
