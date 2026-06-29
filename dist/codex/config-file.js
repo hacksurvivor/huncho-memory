@@ -4,6 +4,8 @@ import { codexConfigPath, pathmarkStoreDir } from "./paths.js";
 const PATHMARK_BLOCK_START = "# >>> pathmark MCP >>>";
 const PATHMARK_BLOCK_END = "# <<< pathmark MCP <<<";
 const PATHMARK_BLOCK_RE = /(?:^|\n)# >>> pathmark MCP >>>\n[\s\S]*?\n# <<< pathmark MCP <<<(?:\n|$)/g;
+const TOML_TABLE_RE = /^\s*\[+.*\]+\s*(?:#.*)?$/;
+const PATHMARK_MCP_TABLE_RE = /^\s*\[\s*mcp_servers\s*\.\s*pathmark(?:\s*\.\s*env)?\s*\]\s*(?:#.*)?$/;
 export async function installPathmarkMcp(configPath = codexConfigPath()) {
     const current = await readText(configPath);
     const block = [
@@ -13,11 +15,11 @@ export async function installPathmarkMcp(configPath = codexConfigPath()) {
         `env = { PATHMARK_STORE_DIR = ${tomlString(pathmarkStoreDir())}, PATHMARK_SYNTHESIS_PROVIDER = "client" }`,
         PATHMARK_BLOCK_END,
     ].join("\n");
-    const base = stripPathmarkBlock(enableHooksFeature(current)).trimEnd();
+    const base = stripPathmarkMcpTables(stripPathmarkBlock(enableHooksFeature(current))).trimEnd();
     await writeText(configPath, `${base ? `${base}\n\n` : ""}${block}\n`);
 }
 export async function removePathmarkMcp(configPath = codexConfigPath()) {
-    const next = stripPathmarkBlock(await readText(configPath)).trimEnd();
+    const next = stripPathmarkMcpTables(stripPathmarkBlock(await readText(configPath))).trimEnd();
     await writeText(configPath, next ? `${next}\n` : "");
 }
 export async function hasPathmarkMcp(configPath = codexConfigPath()) {
@@ -59,6 +61,19 @@ function pathmarkMcpStatusFromContent(content) {
 }
 function stripPathmarkBlock(content) {
     return content.replace(PATHMARK_BLOCK_RE, "\n").replace(/\n{3,}/g, "\n\n");
+}
+function stripPathmarkMcpTables(content) {
+    const lines = content.replace(/\r\n/g, "\n").split("\n");
+    const kept = [];
+    for (let index = 0; index < lines.length; index += 1) {
+        if (!PATHMARK_MCP_TABLE_RE.test(lines[index])) {
+            kept.push(lines[index]);
+            continue;
+        }
+        while (index + 1 < lines.length && !TOML_TABLE_RE.test(lines[index + 1]))
+            index += 1;
+    }
+    return kept.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 function featuresTable(content) {
     const normalized = content.replace(/\r\n/g, "\n");

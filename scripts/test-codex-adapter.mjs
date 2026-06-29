@@ -1150,6 +1150,50 @@ try {
   await removePathmarkMcp(configPath);
   assert.equal(await readFile(configPath, "utf8"), removedConfig);
 
+  const legacyPathmarkConfigPath = path.join(codexHomeDir, "legacy-pathmark-config.toml");
+  await writeFile(
+    legacyPathmarkConfigPath,
+    [
+      'model = "gpt-5"',
+      "",
+      "[mcp_servers.pathmark]",
+      'command = "pathmark"',
+      "",
+      "[mcp_servers.pathmark.env]",
+      'PATHMARK_STORE_DIR = "/Users/mac/.pathmark/memory"',
+      'PATHMARK_SYNTHESIS_PROVIDER = "client"',
+      "",
+      "[mcp_servers.other]",
+      'command = "other"',
+      "",
+      "[mcp_servers.other.env]",
+      'KEEP = "yes"',
+      "",
+      '[projects."/tmp/pathmark-kept"]',
+      "trusted = true",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await installPathmarkMcp(legacyPathmarkConfigPath);
+  const migratedPathmarkConfig = await readFile(legacyPathmarkConfigPath, "utf8");
+  assert.equal(tomlTableHeaderCount(migratedPathmarkConfig, "mcp_servers.pathmark"), 1);
+  assert.equal(tomlTableHeaderCount(migratedPathmarkConfig, "mcp_servers.pathmark.env"), 0);
+  assert.equal(migratedPathmarkConfig.includes("# >>> pathmark MCP >>>"), true);
+  assert.equal(migratedPathmarkConfig.includes(`PATHMARK_STORE_DIR = ${JSON.stringify(installerStoreDir)}`), true);
+  assert.equal(migratedPathmarkConfig.includes('PATHMARK_STORE_DIR = "/Users/mac/.pathmark/memory"'), false);
+  assert.equal(migratedPathmarkConfig.includes("[mcp_servers.other]"), true);
+  assert.equal(migratedPathmarkConfig.includes("[mcp_servers.other.env]"), true);
+  assert.equal(migratedPathmarkConfig.includes('[projects."/tmp/pathmark-kept"]'), true);
+
+  await removePathmarkMcp(legacyPathmarkConfigPath);
+  const removedMigratedPathmarkConfig = await readFile(legacyPathmarkConfigPath, "utf8");
+  assert.equal(tomlTableHeaderCount(removedMigratedPathmarkConfig, "mcp_servers.pathmark"), 0);
+  assert.equal(tomlTableHeaderCount(removedMigratedPathmarkConfig, "mcp_servers.pathmark.env"), 0);
+  assert.equal(removedMigratedPathmarkConfig.includes("[mcp_servers.other]"), true);
+  assert.equal(removedMigratedPathmarkConfig.includes("[mcp_servers.other.env]"), true);
+  assert.equal(removedMigratedPathmarkConfig.includes('[projects."/tmp/pathmark-kept"]'), true);
+
   const cliCodexHome = path.join(temp, "cli-codex-home");
   const cliStoreDir = path.join(temp, "cli-store");
   const cliHonchoDataDir = path.join(temp, "cli-honcho-data");
@@ -1310,6 +1354,11 @@ function pathmarkHookCommandCount(hooksText) {
   return Object.values(parsed.hooks)
     .flatMap((groups) => groups.flatMap((group) => group.hooks ?? []))
     .filter((hook) => typeof hook.command === "string" && /\bpathmark\b[\s\S]*\bcodex\b/.test(hook.command)).length;
+}
+
+function tomlTableHeaderCount(content, dottedName) {
+  const pattern = new RegExp(`^\\s*\\[\\s*${dottedName.replaceAll(".", "\\s*\\.\\s*")}\\s*\\]\\s*(?:#.*)?$`);
+  return content.split("\n").filter((line) => pattern.test(line)).length;
 }
 
 function runCli(args, options = {}) {
