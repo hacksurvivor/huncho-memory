@@ -15,10 +15,13 @@ const TRIVIAL_COMMANDS = [
     "awk",
     "find",
     "wc",
+    "du",
     "git status",
     "git log",
     "git diff",
     "git show",
+    "git branch",
+    "git remote",
     "git ls-files",
     "git grep",
     "git rev-parse",
@@ -122,10 +125,10 @@ function isTrivialReadCommand(command) {
     });
 }
 function hasUsefulShellChain(command) {
-    if (!/(?:&&|;)/.test(command))
+    if (!/(?:&&|\|\||;)/.test(command))
         return false;
     const segments = command
-        .split(/\s*(?:&&|;)\s*/)
+        .split(/\s*(?:&&|\|\||;)\s*/)
         .map(stripLeadingEnvAssignments)
         .filter(Boolean);
     if (segments.length < 2)

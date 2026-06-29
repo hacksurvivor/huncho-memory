@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { observe, prompt, recall, writeback } from "../dist/codex/capture.js";
@@ -233,6 +233,12 @@ try {
     "",
   );
   assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "git branch --show-current" } }),
+    "",
+  );
+  assert.equal(summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "git remote -v" } }), "");
+  assert.equal(summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "du -sh ." } }), "");
+  assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg -l old src | xargs sed -i 's/old/new/g'" } }).startsWith(
       "ran:",
     ),
@@ -304,6 +310,12 @@ try {
   );
   assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg TODO src && npm test" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg TODO src || npm test" } }).startsWith(
       "ran:",
     ),
     true,
@@ -664,17 +676,7 @@ try {
   const rotatedStore = createStore("rotated-cursor");
   const rotatedStoreDir = loadConfig().storeDir;
   const rotatedTranscript = path.join(temp, "rotated-transcript.jsonl");
-  await rotatedStore.addRecord({
-    id: deterministicId(["codex", "rotated-session", "user", "0", "Cursor rotation fresh turn."]),
-    kind: "memory",
-    text: "Cursor rotation fresh turn.",
-    tags: ["codex-raw", "codex-session", "role-user", "session:rotated-session"],
-    source: "codex:session:rotated-session",
-    createdAt: "2026-06-29T00:40:00.000Z",
-  });
-  await writeCursor(rotatedStoreDir, "rotated-session", 5);
-  await writeFile(
-    rotatedTranscript,
+  const rotatedTranscriptContent =
     [
       JSON.stringify({
         timestamp: "2026-06-29T00:46:00.000Z",
@@ -685,13 +687,50 @@ try {
           content: [{ type: "input_text", text: "Cursor rotation fresh turn." }],
         },
       }),
-    ].join("\n") + "\n",
-    "utf8",
-  );
+    ].join("\n") + "\n";
+  await rotatedStore.addRecord({
+    id: deterministicId(["codex", "rotated-session", "user", "0", "Cursor rotation fresh turn."]),
+    kind: "memory",
+    text: "Cursor rotation fresh turn.",
+    tags: ["codex-raw", "codex-session", "role-user", "session:rotated-session"],
+    source: "codex:session:rotated-session",
+    createdAt: "2026-06-29T00:40:00.000Z",
+  });
+  await writeCursor(rotatedStoreDir, "rotated-session", 5);
+  await writeFile(rotatedTranscript, rotatedTranscriptContent, "utf8");
+  await writeback({ session_id: "rotated-session", transcript_path: rotatedTranscript });
+  await writeCursor(rotatedStoreDir, "rotated-session", 5);
+  await writeFile(rotatedTranscript, rotatedTranscriptContent, "utf8");
+  await utimes(rotatedTranscript, new Date("2026-06-29T00:47:00.000Z"), new Date("2026-06-29T00:47:00.000Z"));
   await writeback({ session_id: "rotated-session", transcript_path: rotatedTranscript });
   const rotatedRecords = await rotatedStore.all();
   assert.equal(rotatedRecords.filter((record) => record.text === "Cursor rotation fresh turn.").length, 2);
   assert.equal(await readCursor(rotatedStoreDir, "rotated-session"), 1);
+
+  const assistantTrivialStore = createStore("assistant-trivial");
+  const assistantTrivialStoreDir = loadConfig().storeDir;
+  const assistantTrivialTranscript = path.join(temp, "assistant-trivial-transcript.jsonl");
+  await writeFile(
+    assistantTrivialTranscript,
+    [
+      JSON.stringify({
+        timestamp: "2026-06-29T00:48:00.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: "Done." }],
+        },
+      }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  await writeback({ session_id: "assistant-trivial-session", transcript_path: assistantTrivialTranscript });
+  assert.equal(
+    (await assistantTrivialStore.all()).some((record) => record.source === "codex:session:assistant-trivial-session"),
+    false,
+  );
+  assert.equal(await readCursor(assistantTrivialStoreDir, "assistant-trivial-session"), 1);
 
   const recallStore = createStore("recall");
   const recallRecordId = deterministicId(["recall", "long"]);

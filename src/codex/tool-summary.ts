@@ -21,10 +21,13 @@ const TRIVIAL_COMMANDS = [
   "awk",
   "find",
   "wc",
+  "du",
   "git status",
   "git log",
   "git diff",
   "git show",
+  "git branch",
+  "git remote",
   "git ls-files",
   "git grep",
   "git rev-parse",
@@ -124,9 +127,9 @@ function isTrivialReadCommand(command: string): boolean {
 }
 
 function hasUsefulShellChain(command: string): boolean {
-  if (!/(?:&&|;)/.test(command)) return false;
+  if (!/(?:&&|\|\||;)/.test(command)) return false;
   const segments = command
-    .split(/\s*(?:&&|;)\s*/)
+    .split(/\s*(?:&&|\|\||;)\s*/)
     .map(stripLeadingEnvAssignments)
     .filter(Boolean);
   if (segments.length < 2) return false;

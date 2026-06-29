@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { stat } from "node:fs/promises";
 import path from "node:path";
 import { loadConfig } from "../config.js";
 import { deterministicId } from "../ids.js";
@@ -16,6 +15,7 @@ const RECALL_TEXT_LIMIT = 240;
 const RECALL_SEARCH_LIMIT = 50;
 const IMMEDIATE_PROMPT_TAG = "immediate-prompt";
 const IMMEDIATE_PROMPT_WINDOW_MS = 5 * 60 * 1000;
+const TRIVIAL_ASSISTANT_TURN = /^(?:done|ok|fixed|complete|completed)[.!?]*$/i;
 export async function recall(input) {
     const config = loadConfig();
     const store = new PathmarkStore(config);
@@ -83,15 +83,15 @@ export async function writeback(input) {
         const turns = await readCodexTranscriptStrict(input.transcript_path);
         const cursor = await readCursor(config.storeDir, session);
         const rotatedTranscript = cursor > turns.length;
-        const rotationDiscriminator = rotatedTranscript
-            ? await transcriptRotationDiscriminator(input.transcript_path, turns)
-            : undefined;
+        const rotationDiscriminator = rotatedTranscript ? transcriptRotationDiscriminator(turns) : undefined;
         const freshTurns = turns.slice(rotatedTranscript ? 0 : cursor);
         const immediatePrompts = await immediatePromptRecords(store, session);
         for (const turn of freshTurns) {
             if (turn.role === "user" && shouldSkipUserPrompt(turn.text))
                 continue;
             if (turn.role === "user" && consumeImmediatePrompt(immediatePrompts, turn.text, turn.at))
+                continue;
+            if (turn.role === "assistant" && shouldSkipAssistantTurn(turn.text))
                 continue;
             await store.addRecord(capturedRecord({
                 sessionId: session,
@@ -109,18 +109,19 @@ export async function writeback(input) {
     }
     return "";
 }
-async function transcriptRotationDiscriminator(transcriptPath, turns) {
-    const firstTurnAt = turns[0]?.at ?? "";
-    try {
-        const stats = await stat(transcriptPath);
-        return createHash("sha256")
-            .update(`${firstTurnAt}:${stats.size}:${Math.trunc(stats.mtimeMs)}`)
-            .digest("hex")
-            .slice(0, 12);
+function transcriptRotationDiscriminator(turns) {
+    const hash = createHash("sha256");
+    for (const turn of turns) {
+        hash.update(turn.role);
+        hash.update("\0");
+        hash.update(String(turn.index));
+        hash.update("\0");
+        hash.update(turn.at ?? "");
+        hash.update("\0");
+        hash.update(normalizeCapturedText(turn.text));
+        hash.update("\0");
     }
-    catch {
-        return createHash("sha256").update(firstTurnAt || transcriptPath).digest("hex").slice(0, 12);
-    }
+    return hash.digest("hex").slice(0, 12);
 }
 async function saveCapturedRecord(input) {
     const config = loadConfig();
@@ -257,6 +258,10 @@ function sessionId(input) {
 function shouldSkipUserPrompt(text) {
     const trimmed = text.trim();
     return !trimmed || TRIVIAL_PROMPT.test(trimmed);
+}
+function shouldSkipAssistantTurn(text) {
+    const trimmed = text.trim();
+    return !trimmed || TRIVIAL_ASSISTANT_TURN.test(trimmed);
 }
 async function immediatePromptRecords(store, session) {
     const records = new Map();
