@@ -10,6 +10,7 @@
     "dist",
     "assets/pathmark-icon-v3-glyph.png",
     "README.md",
+    "SECURITY.md",
     "LICENSE",
     "examples",
     "scripts/import-honcho.mjs"
@@ -18,6 +19,7 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "smoke": "node scripts/smoke.mjs",
+    "test": "npm run build && npm run smoke && npm run test:setup && npm run test:codex-adapter",
     "test:setup": "npm run build && node scripts/test-setup.mjs",
     "test:codex-adapter": "npm run build && node scripts/test-codex-adapter.mjs",
     "import:honcho": "node scripts/import-honcho.mjs",

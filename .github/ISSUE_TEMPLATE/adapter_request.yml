@@ -1,0 +1,36 @@
+name: Adapter request
+description: Request setup docs, auto-capture, or migration support for another harness.
+title: "[Adapter]: "
+labels: ["adapter"]
+body:
+  - type: input
+    id: harness
+    attributes:
+      label: Harness or client
+      placeholder: "Example: Windsurf, Grok CLI, OpenClaw, Hermes Agent"
+    validations:
+      required: true
+  - type: dropdown
+    id: request_type
+    attributes:
+      label: Request type
+      options:
+        - MCP setup docs
+        - Auto-capture hooks
+        - Memory import/migration
+        - Synthesis preset
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Existing MCP/config docs
+      description: Link public docs or paste a redacted config shape.
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Desired workflow
+      description: Describe what context should be saved and where it should reappear.
+    validations:
+      required: true

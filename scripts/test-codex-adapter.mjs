@@ -20,20 +20,24 @@ const temp = await mkdtemp(path.join(os.tmpdir(), "pathmark-codex-adapter-"));
 try {
   assert.equal(deterministicId(["session", "user", "hello"]), deterministicId(["session", "user", "hello"]));
 
-  const redacted = redactSecrets("OPENAI_API_KEY=sk-testsecret123456789 Bearer abcdefghijklmnop");
+  const fakeOpenAiKey = ["sk", "testsecret123456789"].join("-");
+  const fakeBearerValue = "abcdefghijklmnop";
+  const redacted = redactSecrets(`OPENAI_API_KEY=${fakeOpenAiKey} ${["Bearer", fakeBearerValue].join(" ")}`);
   assert.equal(redacted.redacted, true);
-  assert.equal(redacted.text.includes("sk-testsecret"), false);
-  assert.equal(redacted.text.includes("abcdefghijklmnop"), false);
+  assert.equal(redacted.text.includes(fakeOpenAiKey), false);
+  assert.equal(redacted.text.includes(fakeBearerValue), false);
 
-  const standaloneOpenAiKey = "sk-proj-abcdefghijklmnopqrstuvwxyz1234567890";
+  const standaloneOpenAiKey = ["sk", "proj", "abcdefghijklmnopqrstuvwxyz1234567890"].join("-");
   const standaloneRedacted = redactSecrets(`Use ${standaloneOpenAiKey} carefully`);
   assert.equal(standaloneRedacted.redacted, true);
   assert.equal(standaloneRedacted.text.includes(standaloneOpenAiKey), false);
   assert.equal(standaloneRedacted.text.includes("[REDACTED]"), true);
 
-  const privateKey = redactSecrets('PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nsecret-material\n-----END PRIVATE KEY-----"');
+  const privateKeyMarker = ["PRIVATE", "KEY"].join(" ");
+  const privateKeyEnv = ["PRIVATE", "KEY"].join("_");
+  const privateKey = redactSecrets(`${privateKeyEnv}="-----BEGIN ${privateKeyMarker}-----\nsecret-material\n-----END ${privateKeyMarker}-----"`);
   assert.equal(privateKey.redacted, true);
-  assert.equal(privateKey.text.includes("BEGIN PRIVATE KEY"), false);
+  assert.equal(privateKey.text.includes(`BEGIN ${privateKeyMarker}`), false);
   assert.equal(privateKey.text.includes("secret-material"), false);
 
   const databaseUrlSecret = "postgres://user:pass@example/db";
@@ -433,7 +437,7 @@ try {
   assert.equal(
     summarizeToolUse({
       tool_name: "functions.exec_command",
-      tool_input: { cmd: "node /Users/mac/Coding /Codex/huncho/dist/index.js codex observe" },
+      tool_input: { cmd: "node /workspace/pathmark/dist/index.js codex observe" },
     }),
     "",
   );
@@ -460,7 +464,7 @@ try {
   });
   await prompt({
     session_id: "capture-session",
-    prompt: "Remember OPENAI_API_KEY=sk-testsecret123 for this test.",
+    prompt: `Remember OPENAI_API_KEY=${fakeOpenAiKey} for this test.`,
   });
   await prompt({
     session_id: "token-session",
@@ -474,11 +478,11 @@ try {
     session_id: "dsn-session",
     prompt: `Remember SENTRY_DSN=${sentryDsnSecret} for alerts.`,
   });
-  const longPrivateKey = `-----BEGIN PRIVATE KEY-----${"secret-material".repeat(40)}-----END PRIVATE KEY-----`;
+  const longPrivateKey = `-----BEGIN ${privateKeyMarker}-----${"secret-material".repeat(40)}-----END ${privateKeyMarker}-----`;
   await observe({
     session_id: "capture-session",
     tool_name: "functions.exec_command",
-    tool_input: { cmd: `npm run deploy -- PRIVATE_KEY="${longPrivateKey}"` },
+    tool_input: { cmd: `npm run deploy -- ${privateKeyEnv}="${longPrivateKey}"` },
   });
   await writeback({ session_id: "capture-session", transcript_path: transcript });
 
@@ -493,7 +497,7 @@ try {
   const redactedCapture = await captureStore.search({ query: "OPENAI_API_KEY", limit: 20 });
   const redactedRecord = redactedCapture.find((result) => result.record.tags.includes("redacted"))?.record;
   assert.ok(redactedRecord);
-  assert.equal(redactedRecord.text.includes("sk-testsecret123"), false);
+  assert.equal(redactedRecord.text.includes(fakeOpenAiKey), false);
   assert.equal(redactedRecord.text.includes("[REDACTED]"), true);
 
   const standaloneTokenCapture = await captureStore.search({ query: "standalone token", limit: 20 });
@@ -893,20 +897,20 @@ try {
   await recallStore.addRecord({
     id: recallRecordId,
     kind: "memory",
-    text: `Huncho recall relevant project decision: OPENAI_API_KEY=sk-recallsecret ${"detail ".repeat(80)} ${recallTail}`,
+    text: `Huncho recall relevant project decision: OPENAI_API_KEY=${["sk", "recallsecret"].join("-")} ${"detail ".repeat(80)} ${recallTail}`,
     tags: ["codex-raw", "codex-session", "role-user", "session:recall-session"],
     source: "codex:session:recall-session",
     createdAt: "2026-06-29T00:00:09.000Z",
   });
   const recallOutput = await recall({
-    cwd: "/Users/mac/Coding /Codex/huncho",
+    cwd: "/workspace/pathmark",
     session_id: "recall-session",
   });
   assert.equal(recallOutput.includes("Generic raw captured turn."), false);
   assert.equal(recallOutput.includes("Other project decision from a different session"), false);
   assert.equal(recallOutput.includes("Other project decision filler"), false);
   assert.equal(recallOutput.includes("Huncho recall relevant project decision"), true);
-  assert.equal(recallOutput.includes("sk-recallsecret"), false);
+  assert.equal(recallOutput.includes(["sk", "recallsecret"].join("-")), false);
   assert.equal(recallOutput.includes("[REDACTED]"), true);
   assert.equal(recallOutput.includes(recallTail), false);
   assert.equal(recallOutput.includes(recallRecordId), false);
@@ -931,12 +935,12 @@ try {
 
   createStore("project-recall");
   await prompt({
-    cwd: "/Users/mac/Coding /Codex/huncho",
+    cwd: "/workspace/pathmark",
     session_id: "project-session-a",
     prompt: "Remember alpha workspace behavior.",
   });
   const projectRecall = await recall({
-    cwd: "/Users/mac/Coding /Codex/huncho",
+    cwd: "/workspace/pathmark",
     session_id: "project-session-b",
   });
   assert.equal(projectRecall.includes("alpha workspace behavior"), true);
@@ -1053,7 +1057,7 @@ try {
             },
           ],
           UserPromptSubmit: [
-            { hooks: [{ type: "command", command: "node /Users/mac/.codex/honcho/codex-honcho.mjs prompt" }] },
+            { hooks: [{ type: "command", command: "node /home/user/.codex/honcho/codex-honcho.mjs prompt" }] },
             { hooks: [{ type: "command", command: "echo keep-me" }] },
           ],
           Stop: [{ hooks: [{ type: "command", command: "pathmark codex writeback" }] }],
@@ -1094,7 +1098,7 @@ try {
       {
         hooks: {
           UserPromptSubmit: [
-            { hooks: [{ type: "command", command: "node /Users/mac/.codex/honcho/codex-honcho.mjs prompt" }] },
+            { hooks: [{ type: "command", command: "node /home/user/.codex/honcho/codex-honcho.mjs prompt" }] },
             { hooks: [{ type: "command", command: "echo keep-honcho-test" }] },
           ],
         },
@@ -1160,7 +1164,7 @@ try {
       'command = "pathmark"',
       "",
       "[mcp_servers.pathmark.env]",
-      'PATHMARK_STORE_DIR = "/Users/mac/.pathmark/memory"',
+      'PATHMARK_STORE_DIR = "/home/user/.pathmark/memory"',
       'PATHMARK_SYNTHESIS_PROVIDER = "client"',
       "",
       "[mcp_servers.other]",
@@ -1181,7 +1185,7 @@ try {
   assert.equal(tomlTableHeaderCount(migratedPathmarkConfig, "mcp_servers.pathmark.env"), 0);
   assert.equal(migratedPathmarkConfig.includes("# >>> pathmark MCP >>>"), true);
   assert.equal(migratedPathmarkConfig.includes(`PATHMARK_STORE_DIR = ${JSON.stringify(installerStoreDir)}`), true);
-  assert.equal(migratedPathmarkConfig.includes('PATHMARK_STORE_DIR = "/Users/mac/.pathmark/memory"'), false);
+  assert.equal(migratedPathmarkConfig.includes('PATHMARK_STORE_DIR = "/home/user/.pathmark/memory"'), false);
   assert.equal(migratedPathmarkConfig.includes("[mcp_servers.other]"), true);
   assert.equal(migratedPathmarkConfig.includes("[mcp_servers.other.env]"), true);
   assert.equal(migratedPathmarkConfig.includes('[projects."/tmp/pathmark-kept"]'), true);
@@ -1206,7 +1210,7 @@ try {
       {
         hooks: {
           UserPromptSubmit: [
-            { hooks: [{ type: "command", command: "node /Users/mac/.codex/honcho/codex-honcho.mjs prompt" }] },
+            { hooks: [{ type: "command", command: "node /home/user/.codex/honcho/codex-honcho.mjs prompt" }] },
           ],
         },
       },

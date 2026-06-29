@@ -1,0 +1,32 @@
+name: Compatibility report
+description: Share a working or broken Pathmark setup for a specific client.
+title: "[Compat]: "
+labels: ["compatibility"]
+body:
+  - type: input
+    id: client
+    attributes:
+      label: Client and version
+      placeholder: "Example: opencode x.y.z"
+    validations:
+      required: true
+  - type: dropdown
+    id: status
+    attributes:
+      label: Result
+      options:
+        - Works
+        - Partially works
+        - Does not work
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Redacted config
+      render: json
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Include setup steps, errors, or client-specific caveats.

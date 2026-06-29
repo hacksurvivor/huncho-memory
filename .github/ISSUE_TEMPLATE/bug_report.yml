@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a Pathmark bug or regression.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not paste secrets or private memory contents.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Run `pathmark --help` or include the GitHub commit if installed from GitHub.
+      placeholder: "v0.1.0 / commit hash"
+  - type: dropdown
+    id: harness
+    attributes:
+      label: Harness
+      options:
+        - Codex
+        - Claude Code
+        - Claude Desktop
+        - Cursor
+        - opencode
+        - Gemini CLI
+        - Other MCP client
+        - Not harness-specific
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Install with ...
+        2. Run ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Status output
+      description: Paste `pathmark codex status` or relevant setup output. Redact paths if needed.
+      render: json
