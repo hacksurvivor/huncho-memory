@@ -290,6 +290,25 @@ try {
     true,
   );
   assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "git status && npm test" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({
+      tool_name: "functions.exec_command",
+      tool_input: { cmd: "cat package.json && npm test" },
+    }).startsWith("ran:"),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg TODO src && npm test" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg old src && rm target.txt" } }).startsWith(
       "ran:",
     ),
@@ -321,6 +340,22 @@ try {
   );
   assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "cat input > output" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "cat input>output" } }).startsWith("ran:"),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "cat input>>output" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "cat input> output" } }).startsWith(
       "ran:",
     ),
     true,
@@ -629,6 +664,14 @@ try {
   const rotatedStore = createStore("rotated-cursor");
   const rotatedStoreDir = loadConfig().storeDir;
   const rotatedTranscript = path.join(temp, "rotated-transcript.jsonl");
+  await rotatedStore.addRecord({
+    id: deterministicId(["codex", "rotated-session", "user", "0", "Cursor rotation fresh turn."]),
+    kind: "memory",
+    text: "Cursor rotation fresh turn.",
+    tags: ["codex-raw", "codex-session", "role-user", "session:rotated-session"],
+    source: "codex:session:rotated-session",
+    createdAt: "2026-06-29T00:40:00.000Z",
+  });
   await writeCursor(rotatedStoreDir, "rotated-session", 5);
   await writeFile(
     rotatedTranscript,
@@ -647,7 +690,7 @@ try {
   );
   await writeback({ session_id: "rotated-session", transcript_path: rotatedTranscript });
   const rotatedRecords = await rotatedStore.all();
-  assert.equal(rotatedRecords.some((record) => record.text === "Cursor rotation fresh turn."), true);
+  assert.equal(rotatedRecords.filter((record) => record.text === "Cursor rotation fresh turn.").length, 2);
   assert.equal(await readCursor(rotatedStoreDir, "rotated-session"), 1);
 
   const recallStore = createStore("recall");

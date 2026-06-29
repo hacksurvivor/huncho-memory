@@ -107,14 +107,31 @@ function stripLeadingEnvAssignments(command: string): string {
 
 function isTrivialShellCommand(command: string): boolean {
   if (hasMutationShellMarker(command)) return false;
+  if (hasUsefulShellChain(command)) return false;
 
+  return isTrivialReadCommand(command);
+}
+
+function isTrivialReadCommand(command: string): boolean {
+  const normalized = stripLeadingEnvAssignments(command);
   return TRIVIAL_COMMANDS.some((trivial) => {
-    if (command === trivial) return true;
-    if (!command.startsWith(`${trivial} `)) return false;
-    if (trivial === "sed" && /\s-i(?:\s|$)/.test(command)) return false;
-    if (trivial === "find" && /\s(?:-delete|-exec)(?:\s|$)/.test(command)) return false;
+    if (normalized === trivial) return true;
+    if (!normalized.startsWith(`${trivial} `)) return false;
+    if (trivial === "sed" && /\s-i(?:\S*)?(?:\s|$)/.test(normalized)) return false;
+    if (trivial === "find" && /\s(?:-delete|-exec)(?:\s|$)/.test(normalized)) return false;
     return true;
   });
+}
+
+function hasUsefulShellChain(command: string): boolean {
+  if (!/(?:&&|;)/.test(command)) return false;
+  const segments = command
+    .split(/\s*(?:&&|;)\s*/)
+    .map(stripLeadingEnvAssignments)
+    .filter(Boolean);
+  if (segments.length < 2) return false;
+
+  return segments.some((segment) => !isPathmarkShellCommand(segment) && !isTrivialReadCommand(segment));
 }
 
 function hasMutationShellMarker(command: string): boolean {
@@ -150,8 +167,36 @@ function isMutatingShellSegment(segment: string): boolean {
 }
 
 function hasNonNullOutputRedirection(command: string): boolean {
-  for (const match of command.matchAll(/(?:^|[\s;&|])(?:\d*)>>?\s*([^\s;&|]+)/g)) {
-    if (match[1] !== "/dev/null") return true;
+  let quote: "'" | '"' | undefined;
+
+  for (let index = 0; index < command.length; index += 1) {
+    const char = command[index];
+    if (char === "\\" && quote) {
+      index += 1;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) quote = undefined;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char !== ">") continue;
+
+    const previous = command[index - 1] ?? "";
+    const next = command[index + 1] ?? "";
+    if (previous === "<" || previous === ">" || previous === "=" || next === "=") continue;
+
+    let targetStart = next === ">" ? index + 2 : index + 1;
+    while (/\s/.test(command[targetStart] ?? "")) targetStart += 1;
+    if ((command[targetStart] ?? "") === "&") continue;
+
+    let targetEnd = targetStart;
+    while (targetEnd < command.length && !/[\s;&|]/.test(command[targetEnd])) targetEnd += 1;
+    const target = command.slice(targetStart, targetEnd);
+    if (target && target !== "/dev/null") return true;
   }
 
   return false;

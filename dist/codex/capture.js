@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import { loadConfig } from "../config.js";
 import { deterministicId } from "../ids.js";
@@ -81,7 +82,11 @@ export async function writeback(input) {
         const session = sessionId(input);
         const turns = await readCodexTranscriptStrict(input.transcript_path);
         const cursor = await readCursor(config.storeDir, session);
-        const freshTurns = turns.slice(cursor > turns.length ? 0 : cursor);
+        const rotatedTranscript = cursor > turns.length;
+        const rotationDiscriminator = rotatedTranscript
+            ? await transcriptRotationDiscriminator(input.transcript_path, turns)
+            : undefined;
+        const freshTurns = turns.slice(rotatedTranscript ? 0 : cursor);
         const immediatePrompts = await immediatePromptRecords(store, session);
         for (const turn of freshTurns) {
             if (turn.role === "user" && shouldSkipUserPrompt(turn.text))
@@ -94,7 +99,7 @@ export async function writeback(input) {
                 role: turn.role,
                 text: turn.text,
                 at: turn.at ?? new Date().toISOString(),
-                stablePart: String(turn.index),
+                stablePart: rotationDiscriminator ? `rotation:${rotationDiscriminator}:${turn.index}` : String(turn.index),
             }));
         }
         await writeCursor(config.storeDir, session, turns.length);
@@ -103,6 +108,19 @@ export async function writeback(input) {
         return "";
     }
     return "";
+}
+async function transcriptRotationDiscriminator(transcriptPath, turns) {
+    const firstTurnAt = turns[0]?.at ?? "";
+    try {
+        const stats = await stat(transcriptPath);
+        return createHash("sha256")
+            .update(`${firstTurnAt}:${stats.size}:${Math.trunc(stats.mtimeMs)}`)
+            .digest("hex")
+            .slice(0, 12);
+    }
+    catch {
+        return createHash("sha256").update(firstTurnAt || transcriptPath).digest("hex").slice(0, 12);
+    }
 }
 async function saveCapturedRecord(input) {
     const config = loadConfig();
