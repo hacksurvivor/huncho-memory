@@ -30,9 +30,12 @@ export async function synthesizeWithCommand(input: {
     return runCodex(input.config, prompt);
   }
 
+  if (input.config.synthesisProvider === "openai-compatible") {
+    return runOpenAiCompatible(input.config, input.question, prompt);
+  }
+
   if (!input.config.chatCommand) return undefined;
-  const [command, ...args] = input.config.chatCommand.split(" ").filter(Boolean);
-  return runCommand(command, args, prompt, input.config.chatTimeoutMs);
+  return runShellCommand(input.config.chatCommand, prompt, input.config.chatTimeoutMs);
 }
 
 function runCodex(config: PathmarkConfig, prompt: string): Promise<string> {
@@ -55,6 +58,48 @@ function runCodex(config: PathmarkConfig, prompt: string): Promise<string> {
   args.push(prompt);
 
   return runCommand(config.codexCommand, args, "", config.chatTimeoutMs, parseCodexJsonAnswer);
+}
+
+async function runOpenAiCompatible(config: PathmarkConfig, question: string, prompt: string): Promise<string> {
+  if (!config.openaiApiKey) throw new Error("PATHMARK_OPENAI_API_KEY is required for openai-compatible synthesis");
+  if (!config.openaiModel) throw new Error("PATHMARK_OPENAI_MODEL is required for openai-compatible synthesis");
+
+  const baseUrl = config.openaiBaseUrl.replace(/\/+$/, "");
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.openaiApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.openaiModel,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Answer using only the provided local Pathmark memory context. If the context is insufficient, say what is missing.",
+        },
+        {
+          role: "user",
+          content: `Question:\n${question}\n\n${prompt}`,
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(config.chatTimeoutMs),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`OpenAI-compatible synthesis failed (${response.status}): ${body.slice(0, 500)}`);
+  }
+
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }>;
+  };
+  const content = data.choices?.[0]?.message?.content;
+  if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) return content.map((part) => part.text ?? "").join("").trim();
+  return "";
 }
 
 function parseCodexJsonAnswer(stdout: string): string {
@@ -103,6 +148,42 @@ function runCommand(
       clearTimeout(timer);
       if (code === 0) {
         resolve(parse(Buffer.concat(stdout).toString("utf8")));
+        return;
+      }
+      reject(
+        new Error(
+          `PATHMARK_CHAT_COMMAND exited with code ${code}: ${Buffer.concat(stderr).toString("utf8").trim()}`,
+        ),
+      );
+    });
+    child.stdin.end(stdin);
+  });
+}
+
+function runShellCommand(command: string, stdin: string, timeoutMs: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: process.env,
+      shell: true,
+    });
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error(`Synthesis command timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+
+    child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) {
+        resolve(Buffer.concat(stdout).toString("utf8").trim());
         return;
       }
       reject(

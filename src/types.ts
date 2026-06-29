@@ -14,10 +14,13 @@ export interface PathmarkRecord {
 export interface PathmarkConfig {
   storeDir: string;
   memoryFile: string;
-  synthesisProvider: "client" | "command" | "codex";
+  synthesisProvider: "client" | "command" | "codex" | "openai-compatible";
   chatCommand?: string;
   codexCommand: string;
   codexModel?: string;
+  openaiBaseUrl: string;
+  openaiApiKey?: string;
+  openaiModel?: string;
   chatTimeoutMs: number;
   maxSearchResults: number;
 }

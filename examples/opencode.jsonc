@@ -1,0 +1,13 @@
+{
+  "mcp": {
+    "pathmark": {
+      "type": "local",
+      "command": ["pathmark"],
+      "enabled": true,
+      "environment": {
+        "PATHMARK_STORE_DIR": "~/.pathmark/memory",
+        "PATHMARK_SYNTHESIS_PROVIDER": "client"
+      }
+    }
+  }
+}

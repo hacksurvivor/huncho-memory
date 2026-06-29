@@ -2,7 +2,7 @@
 
 Local-first memory for MCP clients.
 
-Pathmark Memory gives agent tools a shared, durable memory without requiring a hosted account, a vector database, or an API key. It runs as a standard Model Context Protocol server, so the same local memory can be used from Codex, Claude Desktop, Cursor, ChatGPT-compatible MCP clients, and other tools that can launch stdio MCP servers.
+Pathmark Memory gives agent tools a shared, durable memory without requiring a hosted account, a vector database, or an API key. It runs as a standard Model Context Protocol server, so the same local memory can be used from Codex, Claude Code, opencode, Gemini CLI, OpenClaw, Hermes Agent, Grok-compatible MCP clients, Cursor, Claude Desktop, and other tools that can launch stdio MCP servers.
 
 ## Why this exists
 
@@ -12,6 +12,7 @@ Most agent memory systems are tied to one product, one hosted backend, or one su
 - Standard MCP tools instead of a proprietary client.
 - Works when the model lives in the MCP client.
 - Optional subscription CLI bridge for server-side synthesis.
+- Optional OpenAI-compatible API bridge for Kimi, GLM, OpenRouter, local gateways, and other compatible providers.
 - Easy to inspect, back up, delete, or migrate.
 
 Pathmark is provider-neutral. Codex is one optional synthesis preset, but the core server works with any MCP client that can use local tools.
@@ -40,6 +41,8 @@ npm install -g github:hacksurvivor/pathmark
 Then add the MCP server to your client.
 
 The npm package name `pathmark` is currently available, but this first release is GitHub-only until npm publishing is explicitly done.
+
+See [docs/compatibility.md](docs/compatibility.md) for Codex, Claude Code, opencode, Gemini CLI, OpenClaw, Hermes Agent, Grok CLI, Kimi, GLM, and generic MCP setups.
 
 ### Codex
 
@@ -98,10 +101,13 @@ PATHMARK_STORE_DIR=.pathmark npm run dev
 | --- | --- | --- |
 | `PATHMARK_STORE_DIR` | `~/.pathmark/memory` | Directory for `memory.jsonl`. |
 | `PATHMARK_MAX_SEARCH_RESULTS` | `12` | Default search limit. |
-| `PATHMARK_SYNTHESIS_PROVIDER` | `client` | `client`, `command`, or `codex`. |
+| `PATHMARK_SYNTHESIS_PROVIDER` | `client` | `client`, `command`, `codex`, or `openai-compatible`. |
 | `PATHMARK_CHAT_COMMAND` | unset | Command provider: receives a synthesized prompt on stdin and writes an answer on stdout. |
 | `PATHMARK_CODEX_COMMAND` | `codex` | Codex provider command. |
 | `PATHMARK_CODEX_MODEL` | unset | Optional Codex model override. |
+| `PATHMARK_OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible API base URL. |
+| `PATHMARK_OPENAI_API_KEY` | unset | OpenAI-compatible API key. |
+| `PATHMARK_OPENAI_MODEL` | unset | Model id for OpenAI-compatible synthesis. |
 | `PATHMARK_CHAT_TIMEOUT_MS` | `120000` | Synthesis command timeout. |
 
 ## Synthesis Modes
@@ -139,6 +145,20 @@ pathmark
 ```
 
 This is useful for Codex users who have ChatGPT/Codex subscription auth locally but do not want to add an OpenAI API key.
+
+### `openai-compatible`
+
+Use any provider that exposes `/chat/completions`, including many Kimi, GLM/Z.ai, OpenRouter, LiteLLM, Ollama-compatible gateways, and self-hosted routers:
+
+```bash
+PATHMARK_SYNTHESIS_PROVIDER=openai-compatible \
+PATHMARK_OPENAI_BASE_URL=https://api.provider.example/v1 \
+PATHMARK_OPENAI_API_KEY=... \
+PATHMARK_OPENAI_MODEL=... \
+pathmark
+```
+
+This mode only affects `ask_memory`. Regular MCP tools still store and retrieve local memory without a model provider.
 
 ## Data Format
 
