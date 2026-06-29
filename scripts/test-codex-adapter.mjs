@@ -238,6 +238,12 @@ try {
   );
   assert.equal(summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "git remote -v" } }), "");
   assert.equal(summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "du -sh ." } }), "");
+  assert.equal(summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg TODO src || true" } }), "");
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "cat package.json && true" } }),
+    "",
+  );
+  assert.equal(summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "git status || true" } }), "");
   assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg -l old src | xargs sed -i 's/old/new/g'" } }).startsWith(
       "ran:",
@@ -309,6 +315,13 @@ try {
     true,
   );
   assert.equal(
+    summarizeToolUse({
+      tool_name: "functions.exec_command",
+      tool_input: { cmd: "cat package.json && npm run build" },
+    }).startsWith("ran:"),
+    true,
+  );
+  assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg TODO src && npm test" } }).startsWith(
       "ran:",
     ),
@@ -316,6 +329,12 @@ try {
   );
   assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg TODO src || npm test" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg foo src || npm test" } }).startsWith(
       "ran:",
     ),
     true,

@@ -9,6 +9,10 @@ const SHELL_TOOLS = new Set(["Bash", "shell", "local_shell", "exec", "functions.
 const SKIP_TOOL_PREFIXES = ["mcp__pathmark", "pathmark"];
 const TRIVIAL_COMMANDS = [
   "cd",
+  "true",
+  "false",
+  "echo",
+  "printf",
   "pwd",
   "ls",
   "cat",
