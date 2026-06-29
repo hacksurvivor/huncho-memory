@@ -241,6 +241,32 @@ try {
     true,
   );
   assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "cat script.sh | bash" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({
+      tool_name: "functions.exec_command",
+      tool_input: { cmd: 'rg TODO src | while read f; do rm "$f"; done' },
+    }).startsWith("ran:"),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "git diff | git apply" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({
+      tool_name: "functions.exec_command",
+      tool_input: { cmd: "jq . package.json | sponge package.json" },
+    }).startsWith("ran:"),
+    true,
+  );
+  assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "cat input | tee output" } }).startsWith(
       "ran:",
     ),
@@ -540,6 +566,30 @@ try {
     false,
   );
 
+  const rotatedStore = createStore("rotated-cursor");
+  const rotatedStoreDir = loadConfig().storeDir;
+  const rotatedTranscript = path.join(temp, "rotated-transcript.jsonl");
+  await writeCursor(rotatedStoreDir, "rotated-session", 5);
+  await writeFile(
+    rotatedTranscript,
+    [
+      JSON.stringify({
+        timestamp: "2026-06-29T00:46:00.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Cursor rotation fresh turn." }],
+        },
+      }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  await writeback({ session_id: "rotated-session", transcript_path: rotatedTranscript });
+  const rotatedRecords = await rotatedStore.all();
+  assert.equal(rotatedRecords.some((record) => record.text === "Cursor rotation fresh turn."), true);
+  assert.equal(await readCursor(rotatedStoreDir, "rotated-session"), 1);
+
   const recallStore = createStore("recall");
   const recallRecordId = deterministicId(["recall", "long"]);
   const recallTail = "tail-should-not-appear";
@@ -619,6 +669,30 @@ try {
     session_id: "project-session-b",
   });
   assert.equal(projectRecall.includes("alpha workspace behavior"), true);
+
+  createStore("workspace-recall");
+  await prompt({
+    cwd: "/tmp/api",
+    session_id: "api-session-a",
+    prompt: "Remember beta endpoint behavior.",
+  });
+  await prompt({
+    cwd: "/other/api",
+    session_id: "api-session-b",
+    prompt: "Remember gamma endpoint behavior.",
+  });
+  const tmpApiRecall = await recall({
+    cwd: "/tmp/api",
+    session_id: "api-session-c",
+  });
+  assert.equal(tmpApiRecall.includes("beta endpoint behavior"), true);
+  assert.equal(tmpApiRecall.includes("gamma endpoint behavior"), false);
+  const otherApiRecall = await recall({
+    cwd: "/other/api",
+    session_id: "api-session-d",
+  });
+  assert.equal(otherApiRecall.includes("gamma endpoint behavior"), true);
+  assert.equal(otherApiRecall.includes("beta endpoint behavior"), false);
 
   console.log("Codex adapter base tests passed");
 } finally {

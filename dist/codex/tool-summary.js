@@ -118,6 +118,10 @@ function isTrivialShellCommand(command) {
 function hasMutationShellMarker(command) {
     return (/\|\s*xargs\b/.test(command) ||
         /\|\s*tee\b/.test(command) ||
+        /\|\s*(?:bash|sh|zsh|python|python3)\b/.test(command) ||
+        /\|\s*git\s+apply\b/.test(command) ||
+        /\|\s*sponge\b/.test(command) ||
+        /\|\s*while\b[\s\S]*\b(?:rm|mv|cp|sed|perl|python|python3)\b/.test(command) ||
         hasNonNullOutputRedirection(command) ||
         command.includes("<<") ||
         /\bsed\b[^|;&]*\s-i(?:\S*)?(?:\s|$)/.test(command) ||

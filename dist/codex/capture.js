@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { loadConfig } from "../config.js";
 import { deterministicId } from "../ids.js";
@@ -80,7 +81,7 @@ export async function writeback(input) {
         const session = sessionId(input);
         const turns = await readCodexTranscriptStrict(input.transcript_path);
         const cursor = await readCursor(config.storeDir, session);
-        const freshTurns = turns.slice(cursor);
+        const freshTurns = turns.slice(cursor > turns.length ? 0 : cursor);
         const immediatePrompts = await immediatePromptRecords(store, session);
         for (const turn of freshTurns) {
             if (turn.role === "user" && shouldSkipUserPrompt(turn.text))
@@ -115,6 +116,9 @@ function capturedRecord(input) {
     const projectTag = projectTagFromCwd(input.cwd);
     if (projectTag)
         tags.push(projectTag);
+    const workspaceTag = workspaceTagFromCwd(input.cwd);
+    if (workspaceTag)
+        tags.push(workspaceTag);
     if (input.immediatePrompt)
         tags.push(IMMEDIATE_PROMPT_TAG);
     if (redacted.redacted || redacted.text.includes("[REDACTED]"))
@@ -176,6 +180,7 @@ async function recallSearchResults(store, query, input) {
 function filterRecallResults(results, input) {
     const specificTerms = recallSpecificTerms(input);
     const session = input.session_id?.trim().toLowerCase();
+    const workspaceTag = workspaceTagFromCwd(input.cwd);
     if (specificTerms.length === 0 && !session)
         return results;
     return results.filter((result) => {
@@ -184,15 +189,18 @@ function filterRecallResults(results, input) {
         const source = record.source.toLowerCase();
         if (session && (source === `codex:session:${session}` || tags.includes(`session:${session}`)))
             return true;
+        if (workspaceTag && tags.some((tag) => tag.startsWith("workspace:")))
+            return tags.includes(workspaceTag);
         const haystack = `${record.text} ${record.tags.join(" ")} ${record.source}`.toLowerCase();
         return specificTerms.some((term) => haystack.includes(term.toLowerCase()));
     });
 }
 function recallSpecificTerms(input) {
     const cwdTerms = recallTermsFromCwd(input.cwd);
+    const workspaceTag = workspaceTagFromCwd(input.cwd);
     const session = input.session_id?.trim();
     const sessionTerms = session && !GENERIC_RECALL_TOKENS.has(session.toLowerCase()) ? [session] : [];
-    return [...new Set([...cwdTerms, ...sessionTerms])];
+    return [...new Set([...(workspaceTag ? [workspaceTag] : []), ...cwdTerms, ...sessionTerms])];
 }
 function recallTermsFromCwd(cwd) {
     if (!cwd?.trim())
@@ -215,6 +223,13 @@ function projectTagFromCwd(cwd) {
     if (!project || GENERIC_RECALL_TOKENS.has(project))
         return undefined;
     return `project:${project}`;
+}
+function workspaceTagFromCwd(cwd) {
+    if (!cwd?.trim())
+        return undefined;
+    const normalized = path.resolve(cwd.trim());
+    const hash = createHash("sha256").update(normalized).digest("hex").slice(0, 12);
+    return `workspace:${hash}`;
 }
 function sessionId(input) {
     return input.session_id?.trim() || input.cwd?.trim() || "codex";
