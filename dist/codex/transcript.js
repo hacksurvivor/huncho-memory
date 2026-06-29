@@ -36,13 +36,16 @@ async function readCodexTranscriptFile(file, options) {
                 throw new Error(`Invalid Codex transcript JSON at line ${lineNumber}: ${file}`);
             continue;
         }
-        const parsed = parseTranscriptEvent(event, turns.length);
+        const parsed = parseTranscriptEventInternal(event, turns.length, options.strict ? { file, lineNumber } : undefined);
         if (parsed)
             turns.push(parsed);
     }
     return turns;
 }
 export function parseTranscriptEvent(event, index) {
+    return parseTranscriptEventInternal(event, index);
+}
+function parseTranscriptEventInternal(event, index, strict) {
     if (!isRecord(event) || event.type !== "response_item")
         return undefined;
     const payload = event.payload;
@@ -51,8 +54,11 @@ export function parseTranscriptEvent(event, index) {
     if (payload.role !== "user" && payload.role !== "assistant")
         return undefined;
     const text = collectText(payload.content).trim();
-    if (!text)
+    if (!text) {
+        if (strict)
+            throw new Error(`Malformed Codex transcript message at line ${strict.lineNumber}: ${strict.file}`);
         return undefined;
+    }
     if (payload.role === "user" && isInjectedContext(text))
         return undefined;
     return {

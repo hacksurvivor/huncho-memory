@@ -47,7 +47,7 @@ async function readCodexTranscriptFile(file: string, options: { strict: boolean 
       continue;
     }
 
-    const parsed = parseTranscriptEvent(event, turns.length);
+    const parsed = parseTranscriptEventInternal(event, turns.length, options.strict ? { file, lineNumber } : undefined);
     if (parsed) turns.push(parsed);
   }
 
@@ -55,6 +55,14 @@ async function readCodexTranscriptFile(file: string, options: { strict: boolean 
 }
 
 export function parseTranscriptEvent(event: unknown, index: number): CodexTurn | undefined {
+  return parseTranscriptEventInternal(event, index);
+}
+
+function parseTranscriptEventInternal(
+  event: unknown,
+  index: number,
+  strict?: { file: string; lineNumber: number },
+): CodexTurn | undefined {
   if (!isRecord(event) || event.type !== "response_item") return undefined;
 
   const payload = event.payload;
@@ -62,7 +70,10 @@ export function parseTranscriptEvent(event: unknown, index: number): CodexTurn |
   if (payload.role !== "user" && payload.role !== "assistant") return undefined;
 
   const text = collectText(payload.content).trim();
-  if (!text) return undefined;
+  if (!text) {
+    if (strict) throw new Error(`Malformed Codex transcript message at line ${strict.lineNumber}: ${strict.file}`);
+    return undefined;
+  }
   if (payload.role === "user" && isInjectedContext(text)) return undefined;
 
   return {

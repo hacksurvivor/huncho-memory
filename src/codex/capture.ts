@@ -48,6 +48,7 @@ export async function prompt(input: CodexHookInput): Promise<string> {
   try {
     await saveCapturedRecord({
       sessionId: sessionId(input),
+      cwd: input.cwd,
       role: "user",
       text,
       at: new Date().toISOString(),
@@ -72,6 +73,7 @@ export async function observe(input: CodexHookInput): Promise<string> {
   try {
     await saveCapturedRecord({
       sessionId: sessionId(input),
+      cwd: input.cwd,
       role: "tool",
       text: summary,
       at: new Date().toISOString(),
@@ -101,6 +103,7 @@ export async function writeback(input: CodexHookInput): Promise<string> {
       await store.addRecord(
         capturedRecord({
           sessionId: session,
+          cwd: input.cwd,
           role: turn.role,
           text: turn.text,
           at: turn.at ?? new Date().toISOString(),
@@ -119,6 +122,7 @@ export async function writeback(input: CodexHookInput): Promise<string> {
 
 async function saveCapturedRecord(input: {
   sessionId: string;
+  cwd?: string;
   role: "user" | "assistant" | "tool";
   text: string;
   at: string;
@@ -132,6 +136,7 @@ async function saveCapturedRecord(input: {
 
 function capturedRecord(input: {
   sessionId: string;
+  cwd?: string;
   role: "user" | "assistant" | "tool";
   text: string;
   at: string;
@@ -141,6 +146,8 @@ function capturedRecord(input: {
   const redacted = redactSecrets(input.text);
   const roleTag = `role-${input.role}`;
   const tags = ["codex-raw", "codex-session", roleTag, `session:${input.sessionId}`];
+  const projectTag = projectTagFromCwd(input.cwd);
+  if (projectTag) tags.push(projectTag);
   if (input.immediatePrompt) tags.push(IMMEDIATE_PROMPT_TAG);
   if (redacted.redacted || redacted.text.includes("[REDACTED]")) tags.push("redacted");
   const normalizedText = normalizeCapturedText(redacted.text);
@@ -238,6 +245,17 @@ function recallTermsFromCwd(cwd: string | undefined): string[] {
     .split(/[^a-z0-9_-]+/)
     .map((term) => term.trim())
     .filter((term) => term.length > 1 && !GENERIC_RECALL_TOKENS.has(term));
+}
+
+function projectTagFromCwd(cwd: string | undefined): string | undefined {
+  if (!cwd?.trim()) return undefined;
+  const project = path
+    .basename(cwd.trim())
+    .toLowerCase()
+    .replace(/[^a-z0-9_.-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (!project || GENERIC_RECALL_TOKENS.has(project)) return undefined;
+  return `project:${project}`;
 }
 
 function sessionId(input: CodexHookInput): string {

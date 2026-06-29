@@ -35,6 +35,7 @@ export async function prompt(input) {
     try {
         await saveCapturedRecord({
             sessionId: sessionId(input),
+            cwd: input.cwd,
             role: "user",
             text,
             at: new Date().toISOString(),
@@ -59,6 +60,7 @@ export async function observe(input) {
     try {
         await saveCapturedRecord({
             sessionId: sessionId(input),
+            cwd: input.cwd,
             role: "tool",
             text: summary,
             at: new Date().toISOString(),
@@ -87,6 +89,7 @@ export async function writeback(input) {
                 continue;
             await store.addRecord(capturedRecord({
                 sessionId: session,
+                cwd: input.cwd,
                 role: turn.role,
                 text: turn.text,
                 at: turn.at ?? new Date().toISOString(),
@@ -109,6 +112,9 @@ function capturedRecord(input) {
     const redacted = redactSecrets(input.text);
     const roleTag = `role-${input.role}`;
     const tags = ["codex-raw", "codex-session", roleTag, `session:${input.sessionId}`];
+    const projectTag = projectTagFromCwd(input.cwd);
+    if (projectTag)
+        tags.push(projectTag);
     if (input.immediatePrompt)
         tags.push(IMMEDIATE_PROMPT_TAG);
     if (redacted.redacted || redacted.text.includes("[REDACTED]"))
@@ -197,6 +203,18 @@ function recallTermsFromCwd(cwd) {
         .split(/[^a-z0-9_-]+/)
         .map((term) => term.trim())
         .filter((term) => term.length > 1 && !GENERIC_RECALL_TOKENS.has(term));
+}
+function projectTagFromCwd(cwd) {
+    if (!cwd?.trim())
+        return undefined;
+    const project = path
+        .basename(cwd.trim())
+        .toLowerCase()
+        .replace(/[^a-z0-9_.-]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    if (!project || GENERIC_RECALL_TOKENS.has(project))
+        return undefined;
+    return `project:${project}`;
 }
 function sessionId(input) {
     return input.session_id?.trim() || input.cwd?.trim() || "codex";

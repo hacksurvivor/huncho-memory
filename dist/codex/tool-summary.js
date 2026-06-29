@@ -94,6 +94,8 @@ function stripLeadingEnvAssignments(command) {
     return text;
 }
 function isTrivialShellCommand(command) {
+    if (hasMutationShellMarker(command))
+        return false;
     return TRIVIAL_COMMANDS.some((trivial) => {
         if (command === trivial)
             return true;
@@ -105,6 +107,13 @@ function isTrivialShellCommand(command) {
             return false;
         return true;
     });
+}
+function hasMutationShellMarker(command) {
+    return (/\|\s*xargs\b/.test(command) ||
+        command.includes(">") ||
+        command.includes("<<") ||
+        /\bsed\s+[^|;&]*-i(?:\s|$)/.test(command) ||
+        /\bfind\b[\s\S]*(?:\s-delete\b|\s-exec\b)/.test(command));
 }
 function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);

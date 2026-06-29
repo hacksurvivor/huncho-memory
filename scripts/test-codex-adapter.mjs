@@ -21,6 +21,12 @@ try {
   assert.equal(redacted.text.includes("sk-testsecret"), false);
   assert.equal(redacted.text.includes("abcdefghijklmnop"), false);
 
+  const standaloneOpenAiKey = "sk-proj-abcdefghijklmnopqrstuvwxyz1234567890";
+  const standaloneRedacted = redactSecrets(`Use ${standaloneOpenAiKey} carefully`);
+  assert.equal(standaloneRedacted.redacted, true);
+  assert.equal(standaloneRedacted.text.includes(standaloneOpenAiKey), false);
+  assert.equal(standaloneRedacted.text.includes("[REDACTED]"), true);
+
   const privateKey = redactSecrets('PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nsecret-material\n-----END PRIVATE KEY-----"');
   assert.equal(privateKey.redacted, true);
   assert.equal(privateKey.text.includes("BEGIN PRIVATE KEY"), false);
@@ -187,6 +193,22 @@ try {
     "ran: npm test",
   );
   assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg -l old src" } }),
+    "",
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg -l old src | xargs sed -i 's/old/new/g'" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "cat <<EOF > file\nvalue\nEOF" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "pathmark codex status" } }),
     "",
   );
@@ -240,6 +262,10 @@ try {
     session_id: "capture-session",
     prompt: "Remember OPENAI_API_KEY=sk-testsecret123 for this test.",
   });
+  await prompt({
+    session_id: "token-session",
+    prompt: `Use standalone token ${standaloneOpenAiKey} carefully.`,
+  });
   const longPrivateKey = `-----BEGIN PRIVATE KEY-----${"secret-material".repeat(40)}-----END PRIVATE KEY-----`;
   await observe({
     session_id: "capture-session",
@@ -261,6 +287,14 @@ try {
   assert.ok(redactedRecord);
   assert.equal(redactedRecord.text.includes("sk-testsecret123"), false);
   assert.equal(redactedRecord.text.includes("[REDACTED]"), true);
+
+  const standaloneTokenCapture = await captureStore.search({ query: "standalone token", limit: 20 });
+  const standaloneTokenRecord = standaloneTokenCapture.find((result) => result.record.source === "codex:session:token-session")
+    ?.record;
+  assert.ok(standaloneTokenRecord);
+  assert.equal(standaloneTokenRecord.tags.includes("redacted"), true);
+  assert.equal(standaloneTokenRecord.text.includes(standaloneOpenAiKey), false);
+  assert.equal(standaloneTokenRecord.text.includes("[REDACTED]"), true);
 
   const privateKeyCapture = await captureStore.search({ query: "npm run deploy", limit: 20 });
   const privateKeyRecord = privateKeyCapture.find((result) => result.record.tags.includes("role-tool"))?.record;
@@ -421,6 +455,29 @@ try {
     false,
   );
 
+  const malformedMessageTranscript = path.join(temp, "malformed-message-transcript.jsonl");
+  await writeFile(
+    malformedMessageTranscript,
+    [
+      JSON.stringify({
+        timestamp: "2026-06-29T00:45:00.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "unsupported", text: "This strict malformed message must not be captured." }],
+        },
+      }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  assert.equal(await writeback({ session_id: "malformed-message-session", transcript_path: malformedMessageTranscript }), "");
+  assert.equal(await readCursor(malformedStoreDir, "malformed-message-session"), 0);
+  assert.equal(
+    (await captureStore.all()).some((record) => record.source === "codex:session:malformed-message-session"),
+    false,
+  );
+
   const recallStore = createStore("recall");
   const recallRecordId = deterministicId(["recall", "long"]);
   const recallTail = "tail-should-not-appear";
@@ -488,6 +545,18 @@ try {
   assert.equal(noSignalRecall.includes("No matching Pathmark memory found."), true);
   assert.equal(noSignalRecall.includes("Store:"), true);
   assert.equal(noSignalRecall.includes("mcp__pathmark__chat"), true);
+
+  createStore("project-recall");
+  await prompt({
+    cwd: "/Users/mac/Coding /Codex/huncho",
+    session_id: "project-session-a",
+    prompt: "Remember alpha workspace behavior.",
+  });
+  const projectRecall = await recall({
+    cwd: "/Users/mac/Coding /Codex/huncho",
+    session_id: "project-session-b",
+  });
+  assert.equal(projectRecall.includes("alpha workspace behavior"), true);
 
   console.log("Codex adapter base tests passed");
 } finally {

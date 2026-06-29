@@ -99,6 +99,8 @@ function stripLeadingEnvAssignments(command: string): string {
 }
 
 function isTrivialShellCommand(command: string): boolean {
+  if (hasMutationShellMarker(command)) return false;
+
   return TRIVIAL_COMMANDS.some((trivial) => {
     if (command === trivial) return true;
     if (!command.startsWith(`${trivial} `)) return false;
@@ -106,6 +108,16 @@ function isTrivialShellCommand(command: string): boolean {
     if (trivial === "find" && /\s(?:-delete|-exec)(?:\s|$)/.test(command)) return false;
     return true;
   });
+}
+
+function hasMutationShellMarker(command: string): boolean {
+  return (
+    /\|\s*xargs\b/.test(command) ||
+    command.includes(">") ||
+    command.includes("<<") ||
+    /\bsed\s+[^|;&]*-i(?:\s|$)/.test(command) ||
+    /\bfind\b[\s\S]*(?:\s-delete\b|\s-exec\b)/.test(command)
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
