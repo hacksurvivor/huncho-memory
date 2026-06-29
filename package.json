@@ -1,14 +1,13 @@
 {
   "name": "pathmark",
   "version": "0.1.1",
-  "description": "Cross-harness local memory for Codex, Claude Code, opencode, Cursor, Gemini CLI, and other MCP-capable AI agents.",
+  "description": "One local memory layer for Codex, Claude Code, opencode, Cursor, Gemini CLI, and MCP-capable coding agents.",
   "type": "module",
   "bin": {
     "pathmark": "dist/index.js"
   },
   "files": [
     "dist",
-    "assets/pathmark-icon-v3-glyph.png",
     "README.md",
     "SECURITY.md",
     "LICENSE",

@@ -1,32 +1,35 @@
-# Pathmark Memory
+# Pathmark
 
-<p align="center">
-  <img src="assets/pathmark-icon-v3-glyph.png" alt="Pathmark" width="160">
-</p>
+Stop re-explaining your repo each time you switch agents.
 
-One memory for every coding agent on your machine.
+Pathmark gives Codex, Claude Code, opencode, Gemini CLI, Cursor, and any MCP-capable harness one local memory layer. Save decisions, project rules, preferences, and conclusions once. Use them from the next agent without pasting a recap.
 
-Use Codex for a fix, Claude Code for review, opencode for cleanup, and Gemini CLI for a second pass. Pathmark gives each harness the same local context. Decisions, preferences, project notes, and conclusions land in one JSONL store. The next agent can pick them up without a recap.
+Your context stays on disk at `~/.pathmark/memory/memory.jsonl`. You do not need an account, hosted database, API key, or vendor backend to start.
 
 ## Why Pathmark
 
-AI coding agents trap useful context inside their own sessions. You switch tools and spend the first prompt rebuilding history.
+You do not work in one tool. You ask Codex to patch, Claude Code to review, opencode to clean up, and Gemini CLI to challenge the plan. Each tool starts cold unless you carry the context across.
 
-Pathmark moves that context into a local MCP server:
+Pathmark gives those tools one place to read and write memory:
 
-- Local JSONL store by default.
-- Standard MCP tools instead of a proprietary client.
-- Cross-harness memory: every MCP-capable coding agent can read/write the same context.
-- Works when the model lives in the MCP client.
-- Optional subscription CLI bridge for server-side synthesis.
-- Optional OpenAI-compatible API bridge for Kimi, GLM, OpenRouter, local gateways, and other compatible providers.
-- Easy to inspect, back up, delete, or migrate.
+- One local JSONL store across harnesses.
+- Standard MCP tools: `remember`, `search_memory`, `get_context`, and `ask_memory`.
+- Client-side synthesis by default, so your coding agent reads the context and answers.
+- Optional Codex CLI, local command, and OpenAI-compatible synthesis modes.
+- Plain files you can inspect, back up, delete, or migrate.
 
 Pathmark stays provider-neutral. Codex gets one optional synthesis preset. The core server works with any MCP client that can use local tools.
 
 ## Cross-Harness Memory
 
-Codex remembers one set of things. Claude Code learns another. opencode starts cold. Pathmark gives them one shared trail.
+You switch tools during a coding session:
+
+- Codex fixes the failing test.
+- Claude Code reviews the patch.
+- opencode cleans the diff.
+- Gemini CLI challenges the approach.
+
+Pathmark keeps the notes in one store.
 
 Point each harness at the same store:
 
@@ -38,7 +41,7 @@ Gemini CLI  /
 Cursor     /
 ```
 
-Install Pathmark in each harness and point all of them at the same `PATHMARK_STORE_DIR`. Any tool can save context with `remember` or `create_conclusion`; any other tool can later recover it with `search_memory`, `get_context`, or `ask_memory`.
+Install Pathmark in each harness and point them at the same `PATHMARK_STORE_DIR`. One tool saves context with `remember` or `create_conclusion`; the next tool recovers it with `search_memory`, `get_context`, or `ask_memory`.
 
 Pathmark sits below the agents as a memory bus for your coding workflow.
 

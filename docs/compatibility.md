@@ -1,8 +1,8 @@
 # Compatibility
 
-Pathmark is a stdio MCP server. Any host that can launch a local command and speak Model Context Protocol over stdin/stdout can use it.
+Pathmark runs as a stdio MCP server. If a host can launch `pathmark` and speak MCP over stdin/stdout, it can use the same memory file.
 
-Use one local memory store from Codex, Claude Code, opencode, Gemini CLI, OpenClaw, Hermes Agent, Cursor, and any other MCP-capable client.
+Use one memory store across Codex, Claude Code, opencode, Gemini CLI, OpenClaw, Hermes Agent, Cursor, and other MCP-capable clients.
 
 ## The Core Contract
 
@@ -25,7 +25,7 @@ PATHMARK_STORE_DIR=~/.pathmark/memory
 PATHMARK_SYNTHESIS_PROVIDER=client
 ```
 
-With `client`, the MCP host's own model reads the returned memory context and writes the answer. Use this default for Codex, Claude Code, opencode, Gemini CLI, Hermes Agent, OpenClaw, Grok-compatible clients, Cursor, and Claude Desktop.
+With `client`, the MCP host's model reads the returned memory context and writes the answer. Use this default for Codex, Claude Code, opencode, Gemini CLI, Hermes Agent, OpenClaw, Grok-compatible clients, Cursor, and Claude Desktop.
 
 Use the same `PATHMARK_STORE_DIR` in every harness when you want shared context across tools.
 
@@ -33,7 +33,7 @@ Use the same `PATHMARK_STORE_DIR` in every harness when you want shared context 
 ~/.pathmark/memory/memory.jsonl
 ```
 
-That file is the shared durable memory. Each harness can call the same tools:
+That file holds the shared memory. Each harness can call the same tools:
 
 - `remember` to save a fact, decision, preference, or project note.
 - `create_conclusion` to save a higher-signal durable insight.
