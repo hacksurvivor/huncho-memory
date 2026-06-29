@@ -34,10 +34,12 @@ Huncho exposes these MCP tools:
 ## Quick Start
 
 ```bash
-npm install -g huncho-memory
+npm install -g github:hacksurvivor/huncho-memory
 ```
 
 Then add the MCP server to your client.
+
+The npm package name `huncho-memory` is currently available, but this first release is GitHub-only until npm publishing is explicitly done.
 
 ### Codex
 

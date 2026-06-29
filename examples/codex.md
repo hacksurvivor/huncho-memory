@@ -3,7 +3,7 @@
 Install:
 
 ```bash
-npm install -g huncho-memory
+npm install -g github:hacksurvivor/huncho-memory
 ```
 
 Register the MCP server:
