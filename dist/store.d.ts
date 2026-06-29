@@ -20,6 +20,8 @@ export declare class PathmarkStore {
         tags?: string[];
         kind?: PathmarkRecordKind;
     }): Promise<SearchResult[]>;
+    private readRecords;
     private append;
     private rewrite;
+    private withWriteLock;
 }

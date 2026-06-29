@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 const WORD_RE = /[\p{L}\p{N}_'-]+/gu;
+const LOCK_RETRY_MS = 10;
+const LOCK_TIMEOUT_MS = 5000;
 export class PathmarkStore {
     config;
     constructor(config) {
@@ -9,14 +11,7 @@ export class PathmarkStore {
     }
     async ensureReady() {
         await mkdir(this.config.storeDir, { recursive: true });
-        try {
-            await readFile(this.config.memoryFile, "utf8");
-        }
-        catch (error) {
-            if (error.code !== "ENOENT")
-                throw error;
-            await writeFile(this.config.memoryFile, "", "utf8");
-        }
+        await appendFile(this.config.memoryFile, "", "utf8");
     }
     async add(input) {
         const { record } = await this.addRecord(input);
@@ -29,46 +24,45 @@ export class PathmarkStore {
         if (!normalizedText) {
             throw new Error("text is required");
         }
-        const id = input.id?.trim() || randomUUID();
-        const existing = (await this.all({ includeDeleted: true })).find((record) => record.id === id);
-        if (existing) {
-            return { record: existing, created: false };
-        }
-        const record = {
-            id,
-            kind: input.kind,
-            text: normalizedText,
-            tags: normalizeTags(input.tags ?? []),
-            source: input.source?.trim() || "mcp",
-            createdAt: input.createdAt ?? now,
-            updatedAt: input.updatedAt ?? input.createdAt ?? now,
-        };
-        await this.append(record);
-        return { record, created: true };
+        return this.withWriteLock(async () => {
+            const id = input.id?.trim() || randomUUID();
+            const existing = (await this.readRecords({ includeDeleted: true })).find((record) => record.id === id);
+            if (existing) {
+                return { record: existing, created: false };
+            }
+            const record = {
+                id,
+                kind: input.kind,
+                text: normalizedText,
+                tags: normalizeTags(input.tags ?? []),
+                source: input.source?.trim() || "mcp",
+                createdAt: input.createdAt ?? now,
+                updatedAt: input.updatedAt ?? input.createdAt ?? now,
+            };
+            await this.append(record);
+            return { record, created: true };
+        });
     }
     async all(options = {}) {
         await this.ensureReady();
-        const raw = await readFile(this.config.memoryFile, "utf8");
-        const records = raw
-            .split("\n")
-            .filter(Boolean)
-            .map((line) => JSON.parse(line))
-            .filter((record) => options.includeDeleted || !record.deletedAt)
-            .filter((record) => !options.kind || record.kind === options.kind);
+        const records = await this.readRecords(options);
         return records.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     }
     async count() {
         return (await this.all({ includeDeleted: true })).length;
     }
     async delete(id) {
-        const records = await this.all({ includeDeleted: true });
-        const existing = records.find((record) => record.id === id && !record.deletedAt);
-        if (!existing)
-            return undefined;
-        const now = new Date().toISOString();
-        const updatedRecords = records.map((record) => record.id === id ? { ...record, deletedAt: now, updatedAt: now } : record);
-        await this.rewrite(updatedRecords);
-        return { ...existing, deletedAt: now, updatedAt: now };
+        await this.ensureReady();
+        return this.withWriteLock(async () => {
+            const records = await this.readRecords({ includeDeleted: true });
+            const existing = records.find((record) => record.id === id && !record.deletedAt);
+            if (!existing)
+                return undefined;
+            const now = new Date().toISOString();
+            const updatedRecords = records.map((record) => record.id === id ? { ...record, deletedAt: now, updatedAt: now } : record);
+            await this.rewrite(updatedRecords);
+            return { ...existing, deletedAt: now, updatedAt: now };
+        });
     }
     async search(input) {
         const queryTerms = tokenize(input.query);
@@ -85,14 +79,22 @@ export class PathmarkStore {
         return records
             .filter((record) => tagFilter.every((tag) => record.tags.includes(tag)))
             .map((record) => scoreRecord(record, queryTerms))
-            .filter((result) => result.score > 0 || queryTerms.length === 0)
+            .filter((result) => queryTerms.length === 0 || result.matchedTerms.length > 0)
             .sort((a, b) => b.score - a.score || b.record.createdAt.localeCompare(a.record.createdAt))
             .slice(0, limit);
     }
+    async readRecords(options = {}) {
+        const raw = await readFile(this.config.memoryFile, "utf8");
+        return raw
+            .split("\n")
+            .filter(Boolean)
+            .map((line) => JSON.parse(line))
+            .filter((record) => options.includeDeleted || !record.deletedAt)
+            .filter((record) => !options.kind || record.kind === options.kind);
+    }
     async append(record) {
         const line = `${JSON.stringify(record)}\n`;
-        const existing = await readFile(this.config.memoryFile, "utf8");
-        await writeFile(this.config.memoryFile, `${existing}${line}`, "utf8");
+        await appendFile(this.config.memoryFile, line, "utf8");
     }
     async rewrite(records) {
         await mkdir(this.config.storeDir, { recursive: true });
@@ -100,6 +102,31 @@ export class PathmarkStore {
         const body = records.map((record) => JSON.stringify(record)).join("\n");
         await writeFile(tmp, body ? `${body}\n` : "", "utf8");
         await rename(tmp, this.config.memoryFile);
+    }
+    async withWriteLock(operation) {
+        await mkdir(this.config.storeDir, { recursive: true });
+        const lockDir = path.join(this.config.storeDir, ".memory.lock");
+        const startedAt = Date.now();
+        while (true) {
+            try {
+                await mkdir(lockDir);
+                break;
+            }
+            catch (error) {
+                if (error.code !== "EEXIST")
+                    throw error;
+                if (Date.now() - startedAt > LOCK_TIMEOUT_MS) {
+                    throw new Error(`Timed out waiting for Pathmark store lock: ${lockDir}`);
+                }
+                await sleep(LOCK_RETRY_MS);
+            }
+        }
+        try {
+            return await operation();
+        }
+        finally {
+            await rm(lockDir, { force: true, recursive: true });
+        }
     }
 }
 function normalizeTags(tags) {
@@ -122,22 +149,26 @@ function scoreRecord(record, queryTerms) {
     };
 }
 function scorePriority(record) {
+    let priority = 0;
     if (record.kind === "conclusion")
-        return 8;
+        priority += 8;
     if (record.tags.includes("codex-summary"))
-        return 6;
+        priority += 6;
     if (record.tags.includes("project-note"))
-        return 5;
+        priority += 5;
     if (record.tags.includes("decision"))
-        return 5;
+        priority += 5;
     if (record.tags.includes("role-user"))
-        return 3;
+        priority += 3;
     if (record.tags.includes("role-assistant"))
-        return 2;
+        priority += 2;
     if (record.tags.includes("role-tool"))
-        return -4;
+        priority -= 4;
     if (record.tags.includes("honcho-import"))
-        return -1;
-    return 0;
+        priority -= 1;
+    return priority;
+}
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 //# sourceMappingURL=store.js.map
