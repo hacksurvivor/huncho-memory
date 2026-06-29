@@ -5,4 +5,5 @@ export interface CodexTurn {
     index: number;
 }
 export declare function readCodexTranscript(file: string): Promise<CodexTurn[]>;
+export declare function readCodexTranscriptStrict(file: string): Promise<CodexTurn[]>;
 export declare function parseTranscriptEvent(event: unknown, index: number): CodexTurn | undefined;

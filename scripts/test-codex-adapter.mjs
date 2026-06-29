@@ -208,6 +208,13 @@ try {
     }),
     "",
   );
+  assert.equal(
+    summarizeToolUse({
+      tool_name: "functions.exec_command",
+      tool_input: { cmd: "node /Users/mac/Coding /Codex/huncho/dist/index.js codex observe" },
+    }),
+    "",
+  );
   assert.equal(summarizeToolUse({ tool_name: "mcp__pathmark__search_memory", tool_input: {} }), "");
   assert.equal(
     summarizeToolUse({
@@ -233,6 +240,12 @@ try {
     session_id: "capture-session",
     prompt: "Remember OPENAI_API_KEY=sk-testsecret123 for this test.",
   });
+  const longPrivateKey = `-----BEGIN PRIVATE KEY-----${"secret-material".repeat(40)}-----END PRIVATE KEY-----`;
+  await observe({
+    session_id: "capture-session",
+    tool_name: "functions.exec_command",
+    tool_input: { cmd: `npm run deploy -- PRIVATE_KEY="${longPrivateKey}"` },
+  });
   await writeback({ session_id: "capture-session", transcript_path: transcript });
 
   const captureStore = new PathmarkStore(loadConfig());
@@ -249,13 +262,23 @@ try {
   assert.equal(redactedRecord.text.includes("sk-testsecret123"), false);
   assert.equal(redactedRecord.text.includes("[REDACTED]"), true);
 
+  const privateKeyCapture = await captureStore.search({ query: "npm run deploy", limit: 20 });
+  const privateKeyRecord = privateKeyCapture.find((result) => result.record.tags.includes("role-tool"))?.record;
+  assert.ok(privateKeyRecord);
+  assert.equal(privateKeyRecord.tags.includes("redacted"), true);
+  assert.equal(privateKeyRecord.text.includes("BEGIN PRIVATE KEY"), false);
+  assert.equal(privateKeyRecord.text.includes("secret-material"), false);
+  assert.equal(privateKeyRecord.text.includes("[REDACTED]"), true);
+
   const duplicatePrompt = "Remember that Pathmark uses hybrid capture.";
   const duplicateTranscript = path.join(temp, "duplicate-transcript.jsonl");
+  await prompt({ session_id: "dedupe-session", prompt: duplicatePrompt });
+  const duplicateAt = new Date().toISOString();
   await writeFile(
     duplicateTranscript,
     [
       JSON.stringify({
-        timestamp: "2026-06-29T00:00:04.000Z",
+        timestamp: duplicateAt,
         type: "response_item",
         payload: {
           type: "message",
@@ -284,7 +307,6 @@ try {
     ].join("\n") + "\n",
     "utf8",
   );
-  await prompt({ session_id: "dedupe-session", prompt: duplicatePrompt });
   await writeback({ session_id: "dedupe-session", transcript_path: duplicateTranscript });
   const dedupeRecords = await captureStore.all();
   const duplicateUserRecords = dedupeRecords.filter(
@@ -339,6 +361,66 @@ try {
   );
   assert.equal(repeatedUserRecords.length, 2);
 
+  const stalePrompt = "Please preserve this stale repeated prompt.";
+  const staleTranscript = path.join(temp, "stale-transcript.jsonl");
+  await captureStore.addRecord({
+    id: deterministicId(["stale", "immediate"]),
+    kind: "memory",
+    text: stalePrompt,
+    tags: ["codex-raw", "codex-session", "role-user", "session:stale-session", "immediate-prompt"],
+    source: "codex:session:stale-session",
+    createdAt: "2026-06-29T00:00:00.000Z",
+  });
+  await writeFile(
+    staleTranscript,
+    [
+      JSON.stringify({
+        timestamp: "2026-06-29T00:30:00.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: stalePrompt }],
+        },
+      }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  await writeback({ session_id: "stale-session", transcript_path: staleTranscript });
+  const staleUserRecords = (await captureStore.all()).filter(
+    (record) =>
+      record.source === "codex:session:stale-session" &&
+      record.tags.includes("role-user") &&
+      record.text === stalePrompt,
+  );
+  assert.equal(staleUserRecords.length, 2);
+  assert.equal(staleUserRecords.some((record) => !record.tags.includes("immediate-prompt")), true);
+
+  const malformedTranscript = path.join(temp, "malformed-transcript.jsonl");
+  const malformedStoreDir = loadConfig().storeDir;
+  await writeFile(
+    malformedTranscript,
+    [
+      JSON.stringify({
+        timestamp: "2026-06-29T00:40:00.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "This malformed writeback must not advance cursor." }],
+        },
+      }),
+      "{not-json",
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  assert.equal(await writeback({ session_id: "malformed-session", transcript_path: malformedTranscript }), "");
+  assert.equal(await readCursor(malformedStoreDir, "malformed-session"), 0);
+  assert.equal(
+    (await captureStore.all()).some((record) => record.source === "codex:session:malformed-session"),
+    false,
+  );
+
   const recallStore = createStore("recall");
   const recallRecordId = deterministicId(["recall", "long"]);
   const recallTail = "tail-should-not-appear";
@@ -358,10 +440,20 @@ try {
     source: "codex:session:other",
     createdAt: "2026-06-29T00:00:08.000Z",
   });
+  for (let index = 0; index < 40; index += 1) {
+    await recallStore.addRecord({
+      id: deterministicId(["recall", "generic", String(index)]),
+      kind: "memory",
+      text: `Other project decision filler ${index} from a different session should not appear.`,
+      tags: ["codex-raw", "codex-session", "role-user", "session:other"],
+      source: "codex:session:other",
+      createdAt: `2026-06-29T00:01:${String(index).padStart(2, "0")}.000Z`,
+    });
+  }
   await recallStore.addRecord({
     id: recallRecordId,
     kind: "memory",
-    text: `Huncho project decision: OPENAI_API_KEY=sk-recallsecret ${"detail ".repeat(80)} ${recallTail}`,
+    text: `Huncho recall relevant project decision: OPENAI_API_KEY=sk-recallsecret ${"detail ".repeat(80)} ${recallTail}`,
     tags: ["codex-raw", "codex-session", "role-user", "session:recall-session"],
     source: "codex:session:recall-session",
     createdAt: "2026-06-29T00:00:09.000Z",
@@ -372,6 +464,8 @@ try {
   });
   assert.equal(recallOutput.includes("Generic raw captured turn."), false);
   assert.equal(recallOutput.includes("Other project decision from a different session"), false);
+  assert.equal(recallOutput.includes("Other project decision filler"), false);
+  assert.equal(recallOutput.includes("Huncho recall relevant project decision"), true);
   assert.equal(recallOutput.includes("sk-recallsecret"), false);
   assert.equal(recallOutput.includes("[REDACTED]"), true);
   assert.equal(recallOutput.includes(recallTail), false);

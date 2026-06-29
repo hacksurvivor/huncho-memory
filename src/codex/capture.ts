@@ -6,7 +6,7 @@ import { PathmarkStore } from "../store.js";
 import type { PathmarkRecordDraft, SearchResult } from "../types.js";
 import { readCursor, writeCursor } from "./cursor.js";
 import { summarizeToolUse } from "./tool-summary.js";
-import { readCodexTranscript } from "./transcript.js";
+import { readCodexTranscriptStrict } from "./transcript.js";
 
 export interface CodexHookInput {
   cwd?: string;
@@ -23,7 +23,9 @@ const MEMORY_CUE =
 const GENERIC_RECALL_TOKENS = new Set(["codex", "coding", "users", "user", "mac", "home", "documents"]);
 const GENERIC_RECALL_TERMS = ["project", "decisions", "preferences"];
 const RECALL_TEXT_LIMIT = 240;
+const RECALL_SEARCH_LIMIT = 50;
 const IMMEDIATE_PROMPT_TAG = "immediate-prompt";
+const IMMEDIATE_PROMPT_WINDOW_MS = 5 * 60 * 1000;
 
 export async function recall(input: CodexHookInput): Promise<string> {
   const config = loadConfig();
@@ -31,7 +33,7 @@ export async function recall(input: CodexHookInput): Promise<string> {
   const query = recallQuery(input);
 
   try {
-    const results = await store.search({ query, limit: 30 });
+    const results = await recallSearchResults(store, query, input);
     return memoryBlock(filterRecallResults(results, input).slice(0, 8), config.memoryFile);
   } catch {
     return memoryBlock([], config.memoryFile);
@@ -87,14 +89,14 @@ export async function writeback(input: CodexHookInput): Promise<string> {
     const config = loadConfig();
     const store = new PathmarkStore(config);
     const session = sessionId(input);
-    const turns = await readCodexTranscript(input.transcript_path);
+    const turns = await readCodexTranscriptStrict(input.transcript_path);
     const cursor = await readCursor(config.storeDir, session);
     const freshTurns = turns.slice(cursor);
-    const immediatePrompts = await immediatePromptCounts(store, session);
+    const immediatePrompts = await immediatePromptRecords(store, session);
 
     for (const turn of freshTurns) {
       if (turn.role === "user" && shouldSkipUserPrompt(turn.text)) continue;
-      if (turn.role === "user" && consumeImmediatePrompt(immediatePrompts, turn.text)) continue;
+      if (turn.role === "user" && consumeImmediatePrompt(immediatePrompts, turn.text, turn.at)) continue;
       await store.addRecord(
         capturedRecord({
           sessionId: session,
@@ -139,7 +141,7 @@ function capturedRecord(input: {
   const roleTag = `role-${input.role}`;
   const tags = ["codex-raw", "codex-session", roleTag, `session:${input.sessionId}`];
   if (input.immediatePrompt) tags.push(IMMEDIATE_PROMPT_TAG);
-  if (redacted.redacted) tags.push("redacted");
+  if (redacted.redacted || redacted.text.includes("[REDACTED]")) tags.push("redacted");
   const normalizedText = normalizeCapturedText(redacted.text);
   const stablePart = input.stablePart ?? input.at;
 
@@ -180,6 +182,28 @@ function recallQuery(input: CodexHookInput): string {
   const specificTerms = recallSpecificTerms(input);
   if (specificTerms.length === 0) return "";
   return [...new Set([...specificTerms, ...GENERIC_RECALL_TERMS])].join(" ");
+}
+
+async function recallSearchResults(
+  store: PathmarkStore,
+  query: string,
+  input: CodexHookInput,
+): Promise<SearchResult[]> {
+  const specificQuery = recallSpecificTerms(input).join(" ");
+  const searches = [store.search({ query, limit: RECALL_SEARCH_LIMIT })];
+  if (specificQuery && specificQuery !== query) {
+    searches.push(store.search({ query: specificQuery, limit: RECALL_SEARCH_LIMIT }));
+  }
+
+  const merged = new Map<string, SearchResult>();
+  for (const results of await Promise.all(searches)) {
+    for (const result of results) {
+      const existing = merged.get(result.record.id);
+      if (!existing || result.score > existing.score) merged.set(result.record.id, result);
+    }
+  }
+
+  return [...merged.values()].sort((a, b) => b.score - a.score || b.record.createdAt.localeCompare(a.record.createdAt));
 }
 
 function filterRecallResults(results: SearchResult[], input: CodexHookInput): SearchResult[] {
@@ -224,8 +248,8 @@ function shouldSkipUserPrompt(text: string): boolean {
   return !trimmed || TRIVIAL_PROMPT.test(trimmed);
 }
 
-async function immediatePromptCounts(store: PathmarkStore, session: string): Promise<Map<string, number>> {
-  const counts = new Map<string, number>();
+async function immediatePromptRecords(store: PathmarkStore, session: string): Promise<Map<string, number[]>> {
+  const records = new Map<string, number[]>();
   const sessionTag = `session:${session}`.toLowerCase();
 
   for (const record of await store.all()) {
@@ -235,21 +259,30 @@ async function immediatePromptCounts(store: PathmarkStore, session: string): Pro
       continue;
     }
 
+    const createdAt = Date.parse(record.createdAt);
+    if (!Number.isFinite(createdAt)) continue;
+
     const key = normalizeCapturedText(record.text);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    records.set(key, [...(records.get(key) ?? []), createdAt]);
   }
 
-  return counts;
+  return records;
 }
 
-function consumeImmediatePrompt(counts: Map<string, number>, text: string): boolean {
+function consumeImmediatePrompt(records: Map<string, number[]>, text: string, turnAt: string | undefined): boolean {
+  if (!turnAt) return false;
+  const turnTime = Date.parse(turnAt);
+  if (!Number.isFinite(turnTime)) return false;
+
   const redacted = redactSecrets(text);
   const key = normalizeCapturedText(redacted.text);
-  const count = counts.get(key) ?? 0;
-  if (count <= 0) return false;
+  const candidates = records.get(key) ?? [];
+  const index = candidates.findIndex((createdAt) => Math.abs(createdAt - turnTime) <= IMMEDIATE_PROMPT_WINDOW_MS);
+  if (index < 0) return false;
 
-  if (count === 1) counts.delete(key);
-  else counts.set(key, count - 1);
+  candidates.splice(index, 1);
+  if (candidates.length === 0) records.delete(key);
+  else records.set(key, candidates);
   return true;
 }
 

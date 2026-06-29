@@ -1,3 +1,4 @@
+import { redactSecrets } from "../redact.js";
 const SHELL_TOOLS = new Set(["Bash", "shell", "local_shell", "exec", "functions.exec_command"]);
 const SKIP_TOOL_PREFIXES = ["mcp__pathmark", "pathmark"];
 const TRIVIAL_COMMANDS = [
@@ -29,7 +30,8 @@ export function summarizeToolUse(input) {
             return "";
         if (isTrivialShellCommand(command))
             return "";
-        return `ran: ${command.slice(0, 200)}`;
+        const redacted = redactSecrets(command);
+        return `ran: ${redacted.text.slice(0, 200)}`;
     }
     if (name === "apply_patch" || name === "functions.apply_patch") {
         const patch = patchText(input.tool_input);
@@ -78,7 +80,8 @@ function isPathmarkShellCommand(command) {
         .some((segment) => {
         return (/^pathmark(?:\s|$)/.test(segment) ||
             /^npx(?:\s+(?:--yes|-y))*\s+pathmark(?:\s|$)/.test(segment) ||
-            /^node(?:\s+--?[^\s]+)*\s+(?:\S*pathmark\S*|\.?\/?dist\/index\.js)(?:\s|$)/.test(segment));
+            /^node(?:\s+--?[^\s]+)*\s+\S*pathmark\S*(?:\s|$)/.test(segment) ||
+            /^node\b[\s\S]*\bdist\/index\.js\s+codex(?:\s|$)/.test(segment));
     });
 }
 function stripLeadingEnvAssignments(command) {

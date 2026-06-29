@@ -1,3 +1,5 @@
+import { redactSecrets } from "../redact.js";
+
 export interface ToolHookInput {
   tool_name?: string;
   tool_input?: unknown;
@@ -31,7 +33,8 @@ export function summarizeToolUse(input: ToolHookInput): string {
     if (!command) return "";
     if (isPathmarkShellCommand(command)) return "";
     if (isTrivialShellCommand(command)) return "";
-    return `ran: ${command.slice(0, 200)}`;
+    const redacted = redactSecrets(command);
+    return `ran: ${redacted.text.slice(0, 200)}`;
   }
 
   if (name === "apply_patch" || name === "functions.apply_patch") {
@@ -78,7 +81,8 @@ function isPathmarkShellCommand(command: string): boolean {
       return (
         /^pathmark(?:\s|$)/.test(segment) ||
         /^npx(?:\s+(?:--yes|-y))*\s+pathmark(?:\s|$)/.test(segment) ||
-        /^node(?:\s+--?[^\s]+)*\s+(?:\S*pathmark\S*|\.?\/?dist\/index\.js)(?:\s|$)/.test(segment)
+        /^node(?:\s+--?[^\s]+)*\s+\S*pathmark\S*(?:\s|$)/.test(segment) ||
+        /^node\b[\s\S]*\bdist\/index\.js\s+codex(?:\s|$)/.test(segment)
       );
     });
 }

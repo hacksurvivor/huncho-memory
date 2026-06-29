@@ -23,16 +23,27 @@ const INJECTED_TAGS = [
 ];
 
 export async function readCodexTranscript(file: string): Promise<CodexTurn[]> {
+  return readCodexTranscriptFile(file, { strict: false });
+}
+
+export async function readCodexTranscriptStrict(file: string): Promise<CodexTurn[]> {
+  return readCodexTranscriptFile(file, { strict: true });
+}
+
+async function readCodexTranscriptFile(file: string, options: { strict: boolean }): Promise<CodexTurn[]> {
   const raw = await readFile(file, "utf8");
   const turns: CodexTurn[] = [];
+  let lineNumber = 0;
 
   for (const line of raw.split("\n")) {
+    lineNumber += 1;
     if (!line.trim()) continue;
 
     let event: unknown;
     try {
       event = JSON.parse(line);
     } catch {
+      if (options.strict) throw new Error(`Invalid Codex transcript JSON at line ${lineNumber}: ${file}`);
       continue;
     }
 

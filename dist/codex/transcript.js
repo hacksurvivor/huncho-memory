@@ -14,9 +14,17 @@ const INJECTED_TAGS = [
     "pathmark-memory-nudge",
 ];
 export async function readCodexTranscript(file) {
+    return readCodexTranscriptFile(file, { strict: false });
+}
+export async function readCodexTranscriptStrict(file) {
+    return readCodexTranscriptFile(file, { strict: true });
+}
+async function readCodexTranscriptFile(file, options) {
     const raw = await readFile(file, "utf8");
     const turns = [];
+    let lineNumber = 0;
     for (const line of raw.split("\n")) {
+        lineNumber += 1;
         if (!line.trim())
             continue;
         let event;
@@ -24,6 +32,8 @@ export async function readCodexTranscript(file) {
             event = JSON.parse(line);
         }
         catch {
+            if (options.strict)
+                throw new Error(`Invalid Codex transcript JSON at line ${lineNumber}: ${file}`);
             continue;
         }
         const parsed = parseTranscriptEvent(event, turns.length);
