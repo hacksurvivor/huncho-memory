@@ -1,18 +1,16 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { loadConfig } from "../config.js";
-import { codexConfigPath } from "./paths.js";
+import { codexConfigPath, pathmarkStoreDir } from "./paths.js";
 const PATHMARK_BLOCK_START = "# >>> pathmark MCP >>>";
 const PATHMARK_BLOCK_END = "# <<< pathmark MCP <<<";
 const PATHMARK_BLOCK_RE = /(?:^|\n)# >>> pathmark MCP >>>\n[\s\S]*?\n# <<< pathmark MCP <<<(?:\n|$)/g;
 export async function installPathmarkMcp(configPath = codexConfigPath()) {
     const current = await readText(configPath);
-    const config = loadConfig();
     const block = [
         PATHMARK_BLOCK_START,
         "[mcp_servers.pathmark]",
         'command = "pathmark"',
-        `env = { PATHMARK_STORE_DIR = ${tomlString(config.storeDir)}, PATHMARK_SYNTHESIS_PROVIDER = "client" }`,
+        `env = { PATHMARK_STORE_DIR = ${tomlString(pathmarkStoreDir())}, PATHMARK_SYNTHESIS_PROVIDER = "client" }`,
         PATHMARK_BLOCK_END,
     ].join("\n");
     const base = stripPathmarkBlock(enableHooksFeature(current)).trimEnd();

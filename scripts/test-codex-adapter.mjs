@@ -1010,6 +1010,12 @@ try {
     assert.equal(codexCursorDir(), path.join(defaultStoreDir, "codex-cursors"));
     assert.notEqual(codexHome(), process.cwd());
     assert.notEqual(pathmarkStoreDir(), process.cwd());
+
+    const emptyEnvConfigPath = path.join(temp, "empty-env-codex-config.toml");
+    await installPathmarkMcp(emptyEnvConfigPath);
+    const emptyEnvConfig = await readFile(emptyEnvConfigPath, "utf8");
+    assert.equal(emptyEnvConfig.includes(`PATHMARK_STORE_DIR = ${JSON.stringify(defaultStoreDir)}`), true);
+    assert.equal(emptyEnvConfig.includes(`PATHMARK_STORE_DIR = ${JSON.stringify(process.cwd())}`), false);
   } finally {
     restoreEnv("CODEX_HOME", previousCodexHome);
     restoreEnv("PATHMARK_STORE_DIR", previousStoreDir);
