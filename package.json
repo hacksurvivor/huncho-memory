@@ -4,7 +4,7 @@
   "description": "Cross-harness local memory for Codex, Claude Code, opencode, Cursor, Gemini CLI, and other MCP-capable AI agents.",
   "type": "module",
   "bin": {
-    "pathmark": "./dist/index.js"
+    "pathmark": "dist/index.js"
   },
   "files": [
     "dist",

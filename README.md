@@ -61,12 +61,16 @@ Pathmark exposes these MCP tools:
 ## Quick Start
 
 ```bash
-npm install -g --install-links=true github:hacksurvivor/pathmark
+npm install -g pathmark
 ```
 
 Then add the MCP server to your client.
 
-Install from GitHub today. The `pathmark` npm name remains available for a later npm release.
+Prefer npm for normal installs. To test the current GitHub `main` branch directly:
+
+```bash
+npm install -g --install-links=true github:hacksurvivor/pathmark
+```
 
 Generate a setup snippet for your harness:
 
