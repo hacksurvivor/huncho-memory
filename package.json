@@ -16,7 +16,7 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "smoke": "node scripts/smoke.mjs",
-    "prepare": "npm run build"
+    "prepack": "npm run build"
   },
   "keywords": [
     "mcp",
