@@ -10,11 +10,18 @@ const TRIVIAL_COMMANDS = [
     "tail",
     "sed",
     "rg",
+    "grep",
+    "jq",
+    "awk",
     "find",
     "wc",
     "git status",
     "git log",
     "git diff",
+    "git show",
+    "git ls-files",
+    "git grep",
+    "git rev-parse",
 ];
 export function summarizeToolUse(input) {
     const name = input.tool_name?.trim() ?? "";

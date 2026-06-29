@@ -209,6 +209,14 @@ try {
     "",
   );
   assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "grep foo file >/dev/null" } }),
+    "",
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "jq . package.json >/dev/null" } }),
+    "",
+  );
+  assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg -l old src | xargs sed -i 's/old/new/g'" } }).startsWith(
       "ran:",
     ),
@@ -216,6 +224,18 @@ try {
   );
   assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg TODO src | tee todo.txt" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "grep foo file | tee out.txt" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "jq . package.json > out.json" } }).startsWith(
       "ran:",
     ),
     true,
