@@ -114,11 +114,19 @@ function hasMutationShellMarker(command: string): boolean {
   return (
     /\|\s*xargs\b/.test(command) ||
     /\|\s*tee\b/.test(command) ||
-    command.includes(">") ||
+    hasNonNullOutputRedirection(command) ||
     command.includes("<<") ||
     /\bsed\b[^|;&]*\s-i(?:\S*)?(?:\s|$)/.test(command) ||
     /\bfind\b[\s\S]*(?:\s-delete\b|\s-exec\b)/.test(command)
   );
+}
+
+function hasNonNullOutputRedirection(command: string): boolean {
+  for (const match of command.matchAll(/(?:^|[\s;&|])(?:\d*)>>?\s*([^\s;&|]+)/g)) {
+    if (match[1] !== "/dev/null") return true;
+  }
+
+  return false;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
