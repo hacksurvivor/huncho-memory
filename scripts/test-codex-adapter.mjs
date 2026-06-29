@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { observe, prompt, writeback } from "../dist/codex/capture.js";
 import { readCursor, writeCursor } from "../dist/codex/cursor.js";
+import { summarizeToolUse } from "../dist/codex/tool-summary.js";
 import { readCodexTranscript } from "../dist/codex/transcript.js";
 import { loadConfig } from "../dist/config.js";
 import { deterministicId } from "../dist/ids.js";
@@ -178,6 +180,52 @@ try {
   assert.equal(await readCursor(cursorStoreDir, "session-a"), 0);
   await writeCursor(cursorStoreDir, "session-a", 2);
   assert.equal(await readCursor(cursorStoreDir, "session-a"), 2);
+
+  assert.equal(summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "pwd" } }), "");
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "npm test" } }),
+    "ran: npm test",
+  );
+  assert.equal(summarizeToolUse({ tool_name: "mcp__pathmark__search_memory", tool_input: {} }), "");
+  assert.equal(
+    summarizeToolUse({
+      tool_name: "functions.apply_patch",
+      tool_input: "*** Begin Patch\n*** Update File: src/example.ts\n@@\n-old\n+new\n*** End Patch\n",
+    }),
+    "edited: src/example.ts",
+  );
+
+  createStore("capture");
+  const nudge = await prompt({
+    session_id: "capture-session",
+    prompt: "Remember that Pathmark uses hybrid capture.",
+  });
+  assert.equal(nudge.includes("<pathmark-memory-nudge>"), true);
+  assert.equal(await prompt({ session_id: "capture-session", prompt: "ok." }), "");
+  await observe({
+    session_id: "capture-session",
+    tool_name: "functions.exec_command",
+    tool_input: { cmd: "npm run build" },
+  });
+  await prompt({
+    session_id: "capture-session",
+    prompt: "Remember OPENAI_API_KEY=sk-testsecret123 for this test.",
+  });
+  await writeback({ session_id: "capture-session", transcript_path: transcript });
+
+  const captureStore = new PathmarkStore(loadConfig());
+  const captured = await captureStore.search({ query: "hybrid capture build", limit: 20 });
+  assert.equal(captured.some((result) => result.record.tags.includes("role-user")), true);
+  assert.equal(captured.some((result) => result.record.tags.includes("role-tool")), true);
+
+  const assistantCapture = await captureStore.search({ query: "Decision captured", limit: 20 });
+  assert.equal(assistantCapture.some((result) => result.record.tags.includes("role-assistant")), true);
+
+  const redactedCapture = await captureStore.search({ query: "OPENAI_API_KEY", limit: 20 });
+  const redactedRecord = redactedCapture.find((result) => result.record.tags.includes("redacted"))?.record;
+  assert.ok(redactedRecord);
+  assert.equal(redactedRecord.text.includes("sk-testsecret123"), false);
+  assert.equal(redactedRecord.text.includes("[REDACTED]"), true);
 
   console.log("Codex adapter base tests passed");
 } finally {
