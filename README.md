@@ -1,8 +1,8 @@
 # Pathmark Memory
 
-Local-first memory for MCP clients.
+One local memory layer across every AI coding agent you use.
 
-Pathmark Memory gives agent tools a shared, durable memory without requiring a hosted account, a vector database, or an API key. It runs as a standard Model Context Protocol server, so the same local memory can be used from Codex, Claude Code, opencode, Gemini CLI, OpenClaw, Hermes Agent, Grok-compatible MCP clients, Cursor, Claude Desktop, and other tools that can launch stdio MCP servers.
+Pathmark Memory gives Codex, Claude Code, opencode, Gemini CLI, OpenClaw, Hermes Agent, Grok-compatible clients, Cursor, Claude Desktop, and other MCP-capable tools the same durable local context. Switch harnesses without starting from zero: decisions, preferences, project notes, and saved conclusions live in one inspectable store you own.
 
 ## Why this exists
 
@@ -10,12 +10,33 @@ Most agent memory systems are tied to one product, one hosted backend, or one su
 
 - Local JSONL store by default.
 - Standard MCP tools instead of a proprietary client.
+- Cross-harness memory: every MCP-capable coding agent can read/write the same context.
 - Works when the model lives in the MCP client.
 - Optional subscription CLI bridge for server-side synthesis.
 - Optional OpenAI-compatible API bridge for Kimi, GLM, OpenRouter, local gateways, and other compatible providers.
 - Easy to inspect, back up, delete, or migrate.
 
 Pathmark is provider-neutral. Codex is one optional synthesis preset, but the core server works with any MCP client that can use local tools.
+
+## Cross-Harness Memory
+
+Most coding agents learn context inside their own silo. Codex remembers one set of things, Claude Code another, opencode another, and switching tools means paying the context tax again.
+
+Pathmark makes memory a local substrate instead:
+
+```text
+Codex ─┐
+Claude Code ─┤
+opencode ────┤
+Gemini CLI ──┼── Pathmark MCP ── ~/.pathmark/memory/memory.jsonl
+OpenClaw ────┤
+Hermes ──────┤
+Cursor ──────┘
+```
+
+Install Pathmark in each harness and point all of them at the same `PATHMARK_STORE_DIR`. Any tool can save context with `remember` or `create_conclusion`; any other tool can later recover it with `search_memory`, `get_context`, or `ask_memory`.
+
+That makes Pathmark a memory bus for your AI coding workflow, not another agent runtime.
 
 ## Tools
 
@@ -186,7 +207,8 @@ Deletes are soft deletes: the record gets a `deletedAt` timestamp.
 
 ## Roadmap
 
-- Codex installer for hooks, capture, and nudge behavior.
+- Harness installers for Codex, Claude Code, opencode, Gemini CLI, and other MCP clients.
+- Optional auto-capture hooks/importers per harness, so useful context can be saved with less prompting.
 - Provider presets for common local AI CLIs where stable commands exist.
 - Import/export commands for other memory systems.
 - Better ranking with optional local embeddings.
@@ -200,6 +222,10 @@ Deletes are soft deletes: the record gets a `deletedAt` timestamp.
 Pathmark is not trying to be a full agent platform. It is the memory layer: a small MCP server that gives agents a persistent working memory the user owns.
 
 The public hook is simple:
+
+> Switch agents. Keep the context.
+
+Second hook:
 
 > Bring your own subscription. Keep your memory local.
 

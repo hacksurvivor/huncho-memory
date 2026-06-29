@@ -1,7 +1,7 @@
 {
   "name": "pathmark",
   "version": "0.1.0",
-  "description": "Local-first MCP memory server for Codex, Claude Desktop, Cursor, ChatGPT-compatible MCP clients, and other agent tools.",
+  "description": "Cross-harness local memory for Codex, Claude Code, opencode, Cursor, Gemini CLI, and other MCP-capable AI agents.",
   "type": "module",
   "bin": {
     "pathmark": "./dist/index.js"
@@ -25,7 +25,10 @@
     "local-first",
     "codex",
     "claude",
-    "cursor"
+    "cursor",
+    "opencode",
+    "gemini",
+    "mcp-server"
   ],
   "author": "",
   "license": "MIT",
