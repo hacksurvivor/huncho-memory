@@ -12,6 +12,18 @@ Register the MCP server:
 codex mcp add pathmark -- pathmark
 ```
 
+Enable Codex auto-capture hooks:
+
+```bash
+pathmark codex install --replace-honcho
+```
+
+Check status:
+
+```bash
+pathmark codex status
+```
+
 Optional local store override:
 
 ```bash

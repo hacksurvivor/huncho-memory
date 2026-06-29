@@ -1,5 +1,9 @@
 # Pathmark Memory
 
+<p align="center">
+  <img src="assets/pathmark-icon-v3-glyph.png" alt="Pathmark" width="160">
+</p>
+
 One memory for every coding agent on your machine.
 
 Use Codex for a fix, Claude Code for review, opencode for cleanup, and Gemini CLI for a second pass. Pathmark gives each harness the same local context. Decisions, preferences, project notes, and conclusions land in one JSONL store. The next agent can pick them up without a recap.
@@ -64,12 +68,43 @@ Then add the MCP server to your client.
 
 Install from GitHub today. The `pathmark` npm name remains available for a later npm release.
 
+Generate a setup snippet for your harness:
+
+```bash
+pathmark setup list
+pathmark setup claude-code
+pathmark setup opencode --json
+pathmark setup gemini-cli
+pathmark setup kimi
+```
+
 See [docs/compatibility.md](docs/compatibility.md) for Codex, Claude Code, opencode, Gemini CLI, OpenClaw, Hermes Agent, Grok CLI, Kimi, GLM, and generic MCP setups.
 
 ### Codex
 
 ```bash
 codex mcp add pathmark -- pathmark
+```
+
+Codex users can also enable auto-capture:
+
+```bash
+pathmark codex install --replace-honcho
+```
+
+### Claude Code
+
+```bash
+claude mcp add pathmark -- pathmark
+```
+
+### opencode / Gemini CLI
+
+Use the generated snippets:
+
+```bash
+pathmark setup opencode
+pathmark setup gemini-cli
 ```
 
 ### Claude Desktop
@@ -230,6 +265,26 @@ pathmark
 ```
 
 This mode only affects `ask_memory`. Regular MCP tools still store and retrieve local memory without a model provider.
+
+## Setup CLI
+
+`pathmark setup <client>` prints copy-paste setup for common harnesses. Add `--json` when you want structured output for scripts.
+
+Supported targets:
+
+```text
+codex
+claude-code
+claude-desktop
+cursor
+opencode
+gemini-cli
+generic
+openai-compatible
+command
+```
+
+Aliases include `claude`, `gemini`, `kimi`, `glm`, and `z-ai`.
 
 ## Data Format
 

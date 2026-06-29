@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "pathmark": {
+      "command": "pathmark",
+      "args": [],
+      "env": {
+        "PATHMARK_STORE_DIR": "~/.pathmark/memory",
+        "PATHMARK_SYNTHESIS_PROVIDER": "client"
+      }
+    }
+  }
+}

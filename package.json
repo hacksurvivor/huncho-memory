@@ -8,6 +8,7 @@
   },
   "files": [
     "dist",
+    "assets/pathmark-icon-v3-glyph.png",
     "README.md",
     "LICENSE",
     "examples",
@@ -17,6 +18,7 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "smoke": "node scripts/smoke.mjs",
+    "test:setup": "npm run build && node scripts/test-setup.mjs",
     "test:codex-adapter": "npm run build && node scripts/test-codex-adapter.mjs",
     "import:honcho": "node scripts/import-honcho.mjs",
     "prepack": "npm run build"
@@ -28,9 +30,13 @@
     "local-first",
     "codex",
     "claude",
+    "claude-code",
     "cursor",
     "opencode",
     "gemini",
+    "gemini-cli",
+    "kimi",
+    "glm",
     "mcp-server"
   ],
   "author": "",

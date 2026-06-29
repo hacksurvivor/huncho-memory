@@ -42,6 +42,22 @@ That file is the shared durable memory. Each harness can call the same tools:
 
 Pathmark provides the shared store and MCP tool surface today. Harness-specific hooks and importers will add automatic transcript capture.
 
+## Generate Setup Snippets
+
+The installed CLI can print setup instructions for common harnesses:
+
+```bash
+pathmark setup list
+pathmark setup codex
+pathmark setup claude-code
+pathmark setup opencode
+pathmark setup gemini-cli
+pathmark setup generic --json
+pathmark setup kimi --json
+```
+
+Use `--json` when another installer or script should consume the output.
+
 ## Client Matrix
 
 | Client or model surface | Pathmark integration | Notes |
@@ -96,6 +112,14 @@ If a client uses `command` plus `args`, use:
 codex mcp add pathmark -- pathmark
 ```
 
+Enable auto-capture hooks:
+
+```bash
+pathmark codex install --replace-honcho
+```
+
+This removes old Honcho hook commands from Codex while preserving `~/.honcho/codex/local`.
+
 Optional Codex-backed synthesis works when the MCP client cannot synthesize and Codex CLI has local auth:
 
 ```bash
@@ -106,10 +130,8 @@ PATHMARK_CODEX_MODEL=gpt-5.5
 
 ## Claude Code
 
-Use Claude Code's local MCP server flow and point it at:
-
 ```bash
-pathmark
+claude mcp add pathmark -- pathmark
 ```
 
 Recommended config:
@@ -190,7 +212,7 @@ PATHMARK_CHAT_COMMAND="your-agent-cli chat --model your-model"
 
 ## Kimi / GLM / Other OpenAI-Compatible Models
 
-Use an MCP-capable client when possible. If you want Pathmark's `ask_memory` tool to synthesize directly through a compatible model endpoint:
+Use an MCP-capable client when possible. Raw model APIs do not call MCP tools by themselves; the harness provides that tool loop. If you want Pathmark's `ask_memory` tool to synthesize directly through a compatible model endpoint:
 
 ```bash
 PATHMARK_SYNTHESIS_PROVIDER=openai-compatible

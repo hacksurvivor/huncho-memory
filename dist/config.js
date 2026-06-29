@@ -7,8 +7,12 @@ function expandHome(input) {
         return path.join(os.homedir(), input.slice(2));
     return input;
 }
+function envValue(name, fallback) {
+    const value = process.env[name];
+    return value && value.trim() ? value : fallback;
+}
 export function loadConfig() {
-    const storeDir = path.resolve(expandHome(process.env.PATHMARK_STORE_DIR ?? "~/.pathmark/memory"));
+    const storeDir = path.resolve(expandHome(envValue("PATHMARK_STORE_DIR", "~/.pathmark/memory")));
     return {
         storeDir,
         memoryFile: path.join(storeDir, "memory.jsonl"),

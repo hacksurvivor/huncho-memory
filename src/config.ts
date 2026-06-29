@@ -8,10 +8,13 @@ function expandHome(input: string): string {
   return input;
 }
 
+function envValue(name: string, fallback: string): string {
+  const value = process.env[name];
+  return value && value.trim() ? value : fallback;
+}
+
 export function loadConfig(): PathmarkConfig {
-  const storeDir = path.resolve(
-    expandHome(process.env.PATHMARK_STORE_DIR ?? "~/.pathmark/memory"),
-  );
+  const storeDir = path.resolve(expandHome(envValue("PATHMARK_STORE_DIR", "~/.pathmark/memory")));
 
   return {
     storeDir,
