@@ -9,15 +9,16 @@ import { readCodexTranscript } from "./transcript.js";
 const TRIVIAL_PROMPT = /^(?:y|n|yes|no|ok|okay|sure|thanks|yep|nope|continue|go ahead|do it|proceed)\.?$/i;
 const MEMORY_CUE = /\b(?:before|previous|previously|earlier|last time|remember|memory|context|history|decided|decision|same as|again|preference|prefer|repo|project)\b/i;
 const GENERIC_RECALL_TOKENS = new Set(["codex", "coding", "users", "user", "mac", "home", "documents"]);
-const STABLE_RECALL_TERMS = ["project", "decisions", "preferences"];
+const GENERIC_RECALL_TERMS = ["project", "decisions", "preferences"];
 const RECALL_TEXT_LIMIT = 240;
+const IMMEDIATE_PROMPT_TAG = "immediate-prompt";
 export async function recall(input) {
     const config = loadConfig();
     const store = new PathmarkStore(config);
     const query = recallQuery(input);
     try {
-        const results = await store.search({ query, limit: 8 });
-        return memoryBlock(results, config.memoryFile);
+        const results = await store.search({ query, limit: 30 });
+        return memoryBlock(filterRecallResults(results, input).slice(0, 8), config.memoryFile);
     }
     catch {
         return memoryBlock([], config.memoryFile);
@@ -33,6 +34,7 @@ export async function prompt(input) {
             role: "user",
             text,
             at: new Date().toISOString(),
+            immediatePrompt: true,
         });
     }
     catch {
@@ -73,8 +75,11 @@ export async function writeback(input) {
         const turns = await readCodexTranscript(input.transcript_path);
         const cursor = await readCursor(config.storeDir, session);
         const freshTurns = turns.slice(cursor);
+        const immediatePrompts = await immediatePromptCounts(store, session);
         for (const turn of freshTurns) {
             if (turn.role === "user" && shouldSkipUserPrompt(turn.text))
+                continue;
+            if (turn.role === "user" && consumeImmediatePrompt(immediatePrompts, turn.text))
                 continue;
             await store.addRecord(capturedRecord({
                 sessionId: session,
@@ -100,10 +105,12 @@ function capturedRecord(input) {
     const redacted = redactSecrets(input.text);
     const roleTag = `role-${input.role}`;
     const tags = ["codex-raw", "codex-session", roleTag, `session:${input.sessionId}`];
+    if (input.immediatePrompt)
+        tags.push(IMMEDIATE_PROMPT_TAG);
     if (redacted.redacted)
         tags.push("redacted");
     const normalizedText = normalizeCapturedText(redacted.text);
-    const stablePart = input.role === "user" ? normalizedText : (input.stablePart ?? input.at);
+    const stablePart = input.stablePart ?? input.at;
     return {
         id: deterministicId(["codex", input.sessionId, input.role, stablePart, normalizedText]),
         kind: "memory",
@@ -135,10 +142,31 @@ function summarizeResults(results) {
         .join("\n");
 }
 function recallQuery(input) {
+    const specificTerms = recallSpecificTerms(input);
+    if (specificTerms.length === 0)
+        return "";
+    return [...new Set([...specificTerms, ...GENERIC_RECALL_TERMS])].join(" ");
+}
+function filterRecallResults(results, input) {
+    const specificTerms = recallSpecificTerms(input);
+    const session = input.session_id?.trim().toLowerCase();
+    if (specificTerms.length === 0 && !session)
+        return results;
+    return results.filter((result) => {
+        const record = result.record;
+        const tags = record.tags.map((tag) => tag.toLowerCase());
+        const source = record.source.toLowerCase();
+        if (session && (source === `codex:session:${session}` || tags.includes(`session:${session}`)))
+            return true;
+        const haystack = `${record.text} ${record.tags.join(" ")} ${record.source}`.toLowerCase();
+        return specificTerms.some((term) => haystack.includes(term.toLowerCase()));
+    });
+}
+function recallSpecificTerms(input) {
     const cwdTerms = recallTermsFromCwd(input.cwd);
     const session = input.session_id?.trim();
     const sessionTerms = session && !GENERIC_RECALL_TOKENS.has(session.toLowerCase()) ? [session] : [];
-    return [...new Set([...cwdTerms, ...sessionTerms, ...STABLE_RECALL_TERMS])].join(" ");
+    return [...new Set([...cwdTerms, ...sessionTerms])];
 }
 function recallTermsFromCwd(cwd) {
     if (!cwd?.trim())
@@ -156,6 +184,34 @@ function sessionId(input) {
 function shouldSkipUserPrompt(text) {
     const trimmed = text.trim();
     return !trimmed || TRIVIAL_PROMPT.test(trimmed);
+}
+async function immediatePromptCounts(store, session) {
+    const counts = new Map();
+    const sessionTag = `session:${session}`.toLowerCase();
+    for (const record of await store.all()) {
+        if (!record.tags.includes("role-user"))
+            continue;
+        if (!record.tags.includes(IMMEDIATE_PROMPT_TAG))
+            continue;
+        if (record.source.toLowerCase() !== `codex:session:${session.toLowerCase()}` && !record.tags.includes(sessionTag)) {
+            continue;
+        }
+        const key = normalizeCapturedText(record.text);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+}
+function consumeImmediatePrompt(counts, text) {
+    const redacted = redactSecrets(text);
+    const key = normalizeCapturedText(redacted.text);
+    const count = counts.get(key) ?? 0;
+    if (count <= 0)
+        return false;
+    if (count === 1)
+        counts.delete(key);
+    else
+        counts.set(key, count - 1);
+    return true;
 }
 function normalizeCapturedText(text) {
     return text.trim().replace(/\s+/g, " ").toLowerCase();

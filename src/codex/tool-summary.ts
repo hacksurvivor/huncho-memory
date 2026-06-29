@@ -30,9 +30,7 @@ export function summarizeToolUse(input: ToolHookInput): string {
     const command = shellCommand(input.tool_input).trim();
     if (!command) return "";
     if (isPathmarkShellCommand(command)) return "";
-    if (TRIVIAL_COMMANDS.some((trivial) => command === trivial || command.startsWith(`${trivial} `))) {
-      return "";
-    }
+    if (isTrivialShellCommand(command)) return "";
     return `ran: ${command.slice(0, 200)}`;
   }
 
@@ -73,13 +71,37 @@ function changedFiles(patch: string): string[] {
 }
 
 function isPathmarkShellCommand(command: string): boolean {
-  const firstCommand = command.trim().split(/\s*(?:&&|\|\||;)\s*/, 1)[0] ?? "";
-  const withoutEnv = firstCommand.replace(/^env\s+(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*/, "");
-  return (
-    /^pathmark(?:\s|$)/.test(withoutEnv) ||
-    /^npx(?:\s+(?:--yes|-y))*\s+pathmark(?:\s|$)/.test(withoutEnv) ||
-    /^node(?:\s+--?[^\s]+)*\s+\S*pathmark\S*(?:\s|$)/.test(withoutEnv)
-  );
+  return command
+    .split(/\s*(?:&&|\|\||;|\|)\s*/)
+    .map(stripLeadingEnvAssignments)
+    .some((segment) => {
+      return (
+        /^pathmark(?:\s|$)/.test(segment) ||
+        /^npx(?:\s+(?:--yes|-y))*\s+pathmark(?:\s|$)/.test(segment) ||
+        /^node(?:\s+--?[^\s]+)*\s+(?:\S*pathmark\S*|\.?\/?dist\/index\.js)(?:\s|$)/.test(segment)
+      );
+    });
+}
+
+function stripLeadingEnvAssignments(command: string): string {
+  let text = command.trim();
+  if (text.startsWith("env ")) text = text.slice(4).trimStart();
+
+  while (/^[A-Za-z_][A-Za-z0-9_]*=/.test(text)) {
+    text = text.replace(/^[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S+)\s*/, "").trimStart();
+  }
+
+  return text;
+}
+
+function isTrivialShellCommand(command: string): boolean {
+  return TRIVIAL_COMMANDS.some((trivial) => {
+    if (command === trivial) return true;
+    if (!command.startsWith(`${trivial} `)) return false;
+    if (trivial === "sed" && /\s-i(?:\s|$)/.test(command)) return false;
+    if (trivial === "find" && /\s(?:-delete|-exec)(?:\s|$)/.test(command)) return false;
+    return true;
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

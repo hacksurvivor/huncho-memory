@@ -27,9 +27,8 @@ export function summarizeToolUse(input) {
             return "";
         if (isPathmarkShellCommand(command))
             return "";
-        if (TRIVIAL_COMMANDS.some((trivial) => command === trivial || command.startsWith(`${trivial} `))) {
+        if (isTrivialShellCommand(command))
             return "";
-        }
         return `ran: ${command.slice(0, 200)}`;
     }
     if (name === "apply_patch" || name === "functions.apply_patch") {
@@ -73,11 +72,36 @@ function changedFiles(patch) {
     return [...new Set(files.map((file) => file.trim()).filter((file) => file && file !== "/dev/null"))];
 }
 function isPathmarkShellCommand(command) {
-    const firstCommand = command.trim().split(/\s*(?:&&|\|\||;)\s*/, 1)[0] ?? "";
-    const withoutEnv = firstCommand.replace(/^env\s+(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*/, "");
-    return (/^pathmark(?:\s|$)/.test(withoutEnv) ||
-        /^npx(?:\s+(?:--yes|-y))*\s+pathmark(?:\s|$)/.test(withoutEnv) ||
-        /^node(?:\s+--?[^\s]+)*\s+\S*pathmark\S*(?:\s|$)/.test(withoutEnv));
+    return command
+        .split(/\s*(?:&&|\|\||;|\|)\s*/)
+        .map(stripLeadingEnvAssignments)
+        .some((segment) => {
+        return (/^pathmark(?:\s|$)/.test(segment) ||
+            /^npx(?:\s+(?:--yes|-y))*\s+pathmark(?:\s|$)/.test(segment) ||
+            /^node(?:\s+--?[^\s]+)*\s+(?:\S*pathmark\S*|\.?\/?dist\/index\.js)(?:\s|$)/.test(segment));
+    });
+}
+function stripLeadingEnvAssignments(command) {
+    let text = command.trim();
+    if (text.startsWith("env "))
+        text = text.slice(4).trimStart();
+    while (/^[A-Za-z_][A-Za-z0-9_]*=/.test(text)) {
+        text = text.replace(/^[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S+)\s*/, "").trimStart();
+    }
+    return text;
+}
+function isTrivialShellCommand(command) {
+    return TRIVIAL_COMMANDS.some((trivial) => {
+        if (command === trivial)
+            return true;
+        if (!command.startsWith(`${trivial} `))
+            return false;
+        if (trivial === "sed" && /\s-i(?:\s|$)/.test(command))
+            return false;
+        if (trivial === "find" && /\s(?:-delete|-exec)(?:\s|$)/.test(command))
+            return false;
+        return true;
+    });
 }
 function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);

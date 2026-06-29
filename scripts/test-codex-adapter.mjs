@@ -190,6 +190,24 @@ try {
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "pathmark codex status" } }),
     "",
   );
+  assert.equal(
+    summarizeToolUse({
+      tool_name: "functions.exec_command",
+      tool_input: { cmd: "PATHMARK_STORE_DIR=/tmp pathmark codex status" },
+    }),
+    "",
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "npm test && pathmark codex status" } }),
+    "",
+  );
+  assert.equal(
+    summarizeToolUse({
+      tool_name: "functions.exec_command",
+      tool_input: { cmd: "PATHMARK_STORE_DIR=/tmp node ./dist/index.js codex prompt" },
+    }),
+    "",
+  );
   assert.equal(summarizeToolUse({ tool_name: "mcp__pathmark__search_memory", tool_input: {} }), "");
   assert.equal(
     summarizeToolUse({
@@ -286,6 +304,41 @@ try {
     false,
   );
 
+  const repeatedPrompt = "Please preserve this repeated nontrivial prompt.";
+  const repeatedTranscript = path.join(temp, "repeated-transcript.jsonl");
+  await writeFile(
+    repeatedTranscript,
+    [
+      JSON.stringify({
+        timestamp: "2026-06-29T00:00:07.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: repeatedPrompt }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-29T00:00:08.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: repeatedPrompt }],
+        },
+      }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  await writeback({ session_id: "repeat-session", transcript_path: repeatedTranscript });
+  const repeatedUserRecords = (await captureStore.all()).filter(
+    (record) =>
+      record.source === "codex:session:repeat-session" &&
+      record.tags.includes("role-user") &&
+      record.text === repeatedPrompt,
+  );
+  assert.equal(repeatedUserRecords.length, 2);
+
   const recallStore = createStore("recall");
   const recallRecordId = deterministicId(["recall", "long"]);
   const recallTail = "tail-should-not-appear";
@@ -298,18 +351,27 @@ try {
     createdAt: "2026-06-29T00:00:07.000Z",
   });
   await recallStore.addRecord({
+    id: deterministicId(["recall", "unrelated-project"]),
+    kind: "memory",
+    text: "Other project decision from a different session should not appear.",
+    tags: ["codex-raw", "codex-session", "role-user", "session:other"],
+    source: "codex:session:other",
+    createdAt: "2026-06-29T00:00:08.000Z",
+  });
+  await recallStore.addRecord({
     id: recallRecordId,
     kind: "memory",
     text: `Huncho project decision: OPENAI_API_KEY=sk-recallsecret ${"detail ".repeat(80)} ${recallTail}`,
     tags: ["codex-raw", "codex-session", "role-user", "session:recall-session"],
     source: "codex:session:recall-session",
-    createdAt: "2026-06-29T00:00:08.000Z",
+    createdAt: "2026-06-29T00:00:09.000Z",
   });
   const recallOutput = await recall({
     cwd: "/Users/mac/Coding /Codex/huncho",
     session_id: "recall-session",
   });
   assert.equal(recallOutput.includes("Generic raw captured turn."), false);
+  assert.equal(recallOutput.includes("Other project decision from a different session"), false);
   assert.equal(recallOutput.includes("sk-recallsecret"), false);
   assert.equal(recallOutput.includes("[REDACTED]"), true);
   assert.equal(recallOutput.includes(recallTail), false);
