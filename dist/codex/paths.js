@@ -7,8 +7,12 @@ function expandHome(input) {
         return path.join(os.homedir(), input.slice(2));
     return input;
 }
+function envPath(name, fallback) {
+    const value = process.env[name];
+    return value && value.trim() ? value : fallback;
+}
 export function codexHome() {
-    return path.resolve(expandHome(process.env.CODEX_HOME ?? "~/.codex"));
+    return path.resolve(expandHome(envPath("CODEX_HOME", "~/.codex")));
 }
 export function codexHooksPath() {
     return path.join(codexHome(), "hooks.json");
@@ -17,7 +21,7 @@ export function codexConfigPath() {
     return path.join(codexHome(), "config.toml");
 }
 export function pathmarkStoreDir() {
-    return path.resolve(expandHome(process.env.PATHMARK_STORE_DIR ?? "~/.pathmark/memory"));
+    return path.resolve(expandHome(envPath("PATHMARK_STORE_DIR", "~/.pathmark/memory")));
 }
 export function codexCursorDir(storeDir = pathmarkStoreDir()) {
     return path.join(storeDir, "codex-cursors");

@@ -996,6 +996,25 @@ try {
   const generalRecall = await recall({ session_id: "general-session" });
   assert.equal(generalRecall.includes("General session recall remains usable."), true);
 
+  const previousCodexHome = process.env.CODEX_HOME;
+  const previousStoreDir = process.env.PATHMARK_STORE_DIR;
+  try {
+    process.env.CODEX_HOME = "";
+    process.env.PATHMARK_STORE_DIR = "";
+    const defaultCodexHome = path.join(os.homedir(), ".codex");
+    const defaultStoreDir = path.join(os.homedir(), ".pathmark", "memory");
+    assert.equal(codexHome(), defaultCodexHome);
+    assert.equal(codexHooksPath(), path.join(defaultCodexHome, "hooks.json"));
+    assert.equal(codexConfigPath(), path.join(defaultCodexHome, "config.toml"));
+    assert.equal(pathmarkStoreDir(), defaultStoreDir);
+    assert.equal(codexCursorDir(), path.join(defaultStoreDir, "codex-cursors"));
+    assert.notEqual(codexHome(), process.cwd());
+    assert.notEqual(pathmarkStoreDir(), process.cwd());
+  } finally {
+    restoreEnv("CODEX_HOME", previousCodexHome);
+    restoreEnv("PATHMARK_STORE_DIR", previousStoreDir);
+  }
+
   const codexHomeDir = path.join(temp, "codex-home");
   const installerStoreDir = path.join(temp, "installer-store");
   process.env.CODEX_HOME = codexHomeDir;
@@ -1144,4 +1163,9 @@ function pathmarkHookCommandCount(hooksText) {
   return Object.values(parsed.hooks)
     .flatMap((groups) => groups.flatMap((group) => group.hooks ?? []))
     .filter((hook) => typeof hook.command === "string" && /\bpathmark\b[\s\S]*\bcodex\b/.test(hook.command)).length;
+}
+
+function restoreEnv(name, value) {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
 }
