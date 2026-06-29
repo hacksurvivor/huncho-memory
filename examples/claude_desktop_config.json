@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "huncho-memory": {
+      "command": "huncho-memory",
+      "env": {
+        "HUNCHO_STORE_DIR": "~/.huncho/memory"
+      }
+    }
+  }
+}

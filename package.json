@@ -1,0 +1,52 @@
+{
+  "name": "huncho-memory",
+  "version": "0.1.0",
+  "description": "Local-first MCP memory server for Codex, Claude Desktop, Cursor, ChatGPT-compatible MCP clients, and other agent tools.",
+  "type": "module",
+  "bin": {
+    "huncho-memory": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "examples"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "smoke": "node scripts/smoke.mjs",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "memory",
+    "local-first",
+    "codex",
+    "claude",
+    "cursor"
+  ],
+  "author": "",
+  "license": "MIT",
+  "homepage": "https://github.com/hacksurvivor/huncho-memory#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hacksurvivor/huncho-memory.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hacksurvivor/huncho-memory/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

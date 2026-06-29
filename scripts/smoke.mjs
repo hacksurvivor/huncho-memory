@@ -1,0 +1,95 @@
+import { spawn } from "node:child_process";
+import { mkdtemp } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+const storeDir = await mkdtemp(path.join(os.tmpdir(), "huncho-memory-smoke-"));
+const child = spawn(process.execPath, ["dist/index.js"], {
+  stdio: ["pipe", "pipe", "pipe"],
+  env: {
+    ...process.env,
+    HUNCHO_STORE_DIR: storeDir,
+  },
+});
+
+let nextId = 1;
+const pending = new Map();
+let buffer = "";
+
+child.stdout.setEncoding("utf8");
+child.stdout.on("data", (chunk) => {
+  buffer += chunk;
+  let index;
+  while ((index = buffer.indexOf("\n")) >= 0) {
+    const line = buffer.slice(0, index).trim();
+    buffer = buffer.slice(index + 1);
+    if (!line) continue;
+    const message = JSON.parse(line);
+    if (message.id && pending.has(message.id)) {
+      pending.get(message.id)(message);
+      pending.delete(message.id);
+    }
+  }
+});
+
+child.stderr.setEncoding("utf8");
+child.stderr.on("data", (chunk) => process.stderr.write(chunk));
+
+function request(method, params = {}) {
+  const id = nextId++;
+  child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error(`Timed out waiting for ${method}`));
+    }, 5000);
+    pending.set(id, (message) => {
+      clearTimeout(timeout);
+      if (message.error) reject(new Error(JSON.stringify(message.error)));
+      else resolve(message.result);
+    });
+  });
+}
+
+await request("initialize", {
+  protocolVersion: "2024-11-05",
+  capabilities: {},
+  clientInfo: {
+    name: "huncho-smoke",
+    version: "0.1.0",
+  },
+});
+child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized", params: {} })}\n`);
+
+const tools = await request("tools/list");
+const toolNames = tools.tools.map((tool) => tool.name);
+for (const required of ["remember", "search_memory", "get_context", "ask_memory"]) {
+  if (!toolNames.includes(required)) {
+    throw new Error(`Missing expected tool: ${required}`);
+  }
+}
+
+await request("tools/call", {
+  name: "remember",
+  arguments: {
+    text: "Huncho smoke test memory for MCP users.",
+    tags: ["smoke", "mcp"],
+    source: "smoke",
+  },
+});
+
+const search = await request("tools/call", {
+  name: "search_memory",
+  arguments: {
+    query: "MCP smoke",
+    limit: 3,
+  },
+});
+
+const text = search.content?.[0]?.text ?? "";
+if (!text.includes("Huncho smoke test memory")) {
+  throw new Error("Search did not return saved memory");
+}
+
+child.kill("SIGTERM");
+console.log(`Smoke test passed with store ${storeDir}`);
