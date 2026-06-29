@@ -32,6 +32,22 @@ try {
   assert.equal(privateKey.text.includes("BEGIN PRIVATE KEY"), false);
   assert.equal(privateKey.text.includes("secret-material"), false);
 
+  const databaseUrlSecret = "postgres://user:pass@example/db";
+  const databaseUrlRedacted = redactSecrets(`DATABASE_URL=${databaseUrlSecret}`);
+  assert.equal(databaseUrlRedacted.redacted, true);
+  assert.equal(databaseUrlRedacted.text.includes(databaseUrlSecret), false);
+  assert.equal(databaseUrlRedacted.text.includes("user:pass"), false);
+
+  const sentryDsnSecret = "https://key@example.ingest.sentry.io/123";
+  const sentryDsnRedacted = redactSecrets(`SENTRY_DSN=${sentryDsnSecret}`);
+  assert.equal(sentryDsnRedacted.redacted, true);
+  assert.equal(sentryDsnRedacted.text.includes(sentryDsnSecret), false);
+  assert.equal(sentryDsnRedacted.text.includes("key@example"), false);
+
+  const harmlessUrl = redactSecrets("PUBLIC_URL=https://example.com/app");
+  assert.equal(harmlessUrl.redacted, false);
+  assert.equal(harmlessUrl.text.includes("https://example.com/app"), true);
+
   const store = createStore("base");
   const id = deterministicId(["capture", "same"]);
   const first = await store.addRecord({
@@ -267,6 +283,25 @@ try {
     true,
   );
   assert.equal(
+    summarizeToolUse({
+      tool_name: "functions.exec_command",
+      tool_input: { cmd: "git status && git add src && git commit -m x" },
+    }).startsWith("ran:"),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "rg old src && rm target.txt" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
+    summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "cat file; mv file file.bak" } }).startsWith(
+      "ran:",
+    ),
+    true,
+  );
+  assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "cat input | tee output" } }).startsWith(
       "ran:",
     ),
@@ -354,6 +389,14 @@ try {
     session_id: "token-session",
     prompt: `Use standalone token ${standaloneOpenAiKey} carefully.`,
   });
+  await prompt({
+    session_id: "database-url-session",
+    prompt: `Remember DATABASE_URL=${databaseUrlSecret} for deploy.`,
+  });
+  await prompt({
+    session_id: "dsn-session",
+    prompt: `Remember SENTRY_DSN=${sentryDsnSecret} for alerts.`,
+  });
   const longPrivateKey = `-----BEGIN PRIVATE KEY-----${"secret-material".repeat(40)}-----END PRIVATE KEY-----`;
   await observe({
     session_id: "capture-session",
@@ -383,6 +426,23 @@ try {
   assert.equal(standaloneTokenRecord.tags.includes("redacted"), true);
   assert.equal(standaloneTokenRecord.text.includes(standaloneOpenAiKey), false);
   assert.equal(standaloneTokenRecord.text.includes("[REDACTED]"), true);
+
+  const databaseUrlCapture = await captureStore.search({ query: "DATABASE_URL", limit: 20 });
+  const databaseUrlRecord = databaseUrlCapture.find((result) => result.record.source === "codex:session:database-url-session")
+    ?.record;
+  assert.ok(databaseUrlRecord);
+  assert.equal(databaseUrlRecord.tags.includes("redacted"), true);
+  assert.equal(databaseUrlRecord.text.includes(databaseUrlSecret), false);
+  assert.equal(databaseUrlRecord.text.includes("user:pass"), false);
+  assert.equal(databaseUrlRecord.text.includes("[REDACTED]"), true);
+
+  const sentryDsnCapture = await captureStore.search({ query: "SENTRY_DSN", limit: 20 });
+  const sentryDsnRecord = sentryDsnCapture.find((result) => result.record.source === "codex:session:dsn-session")?.record;
+  assert.ok(sentryDsnRecord);
+  assert.equal(sentryDsnRecord.tags.includes("redacted"), true);
+  assert.equal(sentryDsnRecord.text.includes(sentryDsnSecret), false);
+  assert.equal(sentryDsnRecord.text.includes("key@example"), false);
+  assert.equal(sentryDsnRecord.text.includes("[REDACTED]"), true);
 
   const privateKeyCapture = await captureStore.search({ query: "npm run deploy", limit: 20 });
   const privateKeyRecord = privateKeyCapture.find((result) => result.record.tags.includes("role-tool"))?.record;

@@ -122,10 +122,23 @@ function hasMutationShellMarker(command) {
         /\|\s*git\s+apply\b/.test(command) ||
         /\|\s*sponge\b/.test(command) ||
         /\|\s*while\b[\s\S]*\b(?:rm|mv|cp|sed|perl|python|python3)\b/.test(command) ||
+        hasChainedMutatingCommand(command) ||
         hasNonNullOutputRedirection(command) ||
         command.includes("<<") ||
         /\bsed\b[^|;&]*\s-i(?:\S*)?(?:\s|$)/.test(command) ||
         /\bfind\b[\s\S]*(?:\s-delete\b|\s-exec\b)/.test(command));
+}
+function hasChainedMutatingCommand(command) {
+    return command
+        .split(/\s*(?:&&|\|\||;)\s*/)
+        .map(stripLeadingEnvAssignments)
+        .some(isMutatingShellSegment);
+}
+function isMutatingShellSegment(segment) {
+    const command = segment.trim().replace(/^sudo\s+/, "");
+    return (/^git\s+(?:add|commit)\b/.test(command) ||
+        /^(?:rm|mv|cp|chmod|chown|mkdir|touch)\b/.test(command) ||
+        /^perl\b[\s\S]*\s-i(?:\S*)?(?:\s|$)/.test(command));
 }
 function hasNonNullOutputRedirection(command) {
     for (const match of command.matchAll(/(?:^|[\s;&|])(?:\d*)>>?\s*([^\s;&|]+)/g)) {
