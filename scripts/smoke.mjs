@@ -3,12 +3,12 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-const storeDir = await mkdtemp(path.join(os.tmpdir(), "huncho-memory-smoke-"));
+const storeDir = await mkdtemp(path.join(os.tmpdir(), "pathmark-smoke-"));
 const child = spawn(process.execPath, ["dist/index.js"], {
   stdio: ["pipe", "pipe", "pipe"],
   env: {
     ...process.env,
-    HUNCHO_STORE_DIR: storeDir,
+    PATHMARK_STORE_DIR: storeDir,
   },
 });
 
@@ -55,7 +55,7 @@ await request("initialize", {
   protocolVersion: "2024-11-05",
   capabilities: {},
   clientInfo: {
-    name: "huncho-smoke",
+    name: "pathmark-smoke",
     version: "0.1.0",
   },
 });
@@ -72,7 +72,7 @@ for (const required of ["remember", "search_memory", "get_context", "ask_memory"
 await request("tools/call", {
   name: "remember",
   arguments: {
-    text: "Huncho smoke test memory for MCP users.",
+    text: "Pathmark smoke test memory for MCP users.",
     tags: ["smoke", "mcp"],
     source: "smoke",
   },
@@ -87,7 +87,7 @@ const search = await request("tools/call", {
 });
 
 const text = search.content?.[0]?.text ?? "";
-if (!text.includes("Huncho smoke test memory")) {
+if (!text.includes("Pathmark smoke test memory")) {
   throw new Error("Search did not return saved memory");
 }
 

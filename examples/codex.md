@@ -3,19 +3,19 @@
 Install:
 
 ```bash
-npm install -g github:hacksurvivor/huncho-memory
+npm install -g github:hacksurvivor/pathmark
 ```
 
 Register the MCP server:
 
 ```bash
-codex mcp add huncho-memory -- huncho-memory
+codex mcp add pathmark -- pathmark
 ```
 
 Optional local store override:
 
 ```bash
-codex mcp add huncho-memory --env HUNCHO_STORE_DIR=~/.huncho/memory -- huncho-memory
+codex mcp add pathmark --env PATHMARK_STORE_DIR=~/.pathmark/memory -- pathmark
 ```
 
 Use the MCP tools from Codex:

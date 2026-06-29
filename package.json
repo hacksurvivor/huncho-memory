@@ -1,10 +1,10 @@
 {
-  "name": "huncho-memory",
+  "name": "pathmark",
   "version": "0.1.0",
   "description": "Local-first MCP memory server for Codex, Claude Desktop, Cursor, ChatGPT-compatible MCP clients, and other agent tools.",
   "type": "module",
   "bin": {
-    "huncho-memory": "./dist/index.js"
+    "pathmark": "./dist/index.js"
   },
   "files": [
     "dist",
@@ -29,13 +29,13 @@
   ],
   "author": "",
   "license": "MIT",
-  "homepage": "https://github.com/hacksurvivor/huncho-memory#readme",
+  "homepage": "https://github.com/hacksurvivor/pathmark#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hacksurvivor/huncho-memory.git"
+    "url": "git+https://github.com/hacksurvivor/pathmark.git"
   },
   "bugs": {
-    "url": "https://github.com/hacksurvivor/huncho-memory/issues"
+    "url": "https://github.com/hacksurvivor/pathmark/issues"
   },
   "engines": {
     "node": ">=20"

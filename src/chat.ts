@@ -1,8 +1,8 @@
 import { spawn } from "node:child_process";
-import type { HunchoConfig, SearchResult } from "./types.js";
+import type { PathmarkConfig, SearchResult } from "./types.js";
 
 export async function synthesizeWithCommand(input: {
-  config: HunchoConfig;
+  config: PathmarkConfig;
   question: string;
   context: SearchResult[];
 }): Promise<string | undefined> {
@@ -35,7 +35,7 @@ export async function synthesizeWithCommand(input: {
   return runCommand(command, args, prompt, input.config.chatTimeoutMs);
 }
 
-function runCodex(config: HunchoConfig, prompt: string): Promise<string> {
+function runCodex(config: PathmarkConfig, prompt: string): Promise<string> {
   const args = [
     "--ask-for-approval",
     "never",
@@ -107,7 +107,7 @@ function runCommand(
       }
       reject(
         new Error(
-          `HUNCHO_CHAT_COMMAND exited with code ${code}: ${Buffer.concat(stderr).toString("utf8").trim()}`,
+          `PATHMARK_CHAT_COMMAND exited with code ${code}: ${Buffer.concat(stderr).toString("utf8").trim()}`,
         ),
       );
     });

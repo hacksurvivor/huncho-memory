@@ -1,9 +1,9 @@
 {
   "mcpServers": {
-    "huncho-memory": {
-      "command": "huncho-memory",
+    "pathmark": {
+      "command": "pathmark",
       "env": {
-        "HUNCHO_STORE_DIR": "~/.huncho/memory"
+        "PATHMARK_STORE_DIR": "~/.pathmark/memory"
       }
     }
   }

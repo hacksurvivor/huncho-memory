@@ -1,6 +1,6 @@
 # Contributing
 
-Huncho Memory is intentionally small and local-first.
+Pathmark Memory is intentionally small and local-first.
 
 ## Development
 

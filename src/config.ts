@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import type { HunchoConfig } from "./types.js";
+import type { PathmarkConfig } from "./types.js";
 
 function expandHome(input: string): string {
   if (input === "~") return os.homedir();
@@ -8,26 +8,26 @@ function expandHome(input: string): string {
   return input;
 }
 
-export function loadConfig(): HunchoConfig {
+export function loadConfig(): PathmarkConfig {
   const storeDir = path.resolve(
-    expandHome(process.env.HUNCHO_STORE_DIR ?? "~/.huncho/memory"),
+    expandHome(process.env.PATHMARK_STORE_DIR ?? "~/.pathmark/memory"),
   );
 
   return {
     storeDir,
     memoryFile: path.join(storeDir, "memory.jsonl"),
     synthesisProvider: synthesisProvider(),
-    chatCommand: process.env.HUNCHO_CHAT_COMMAND,
-    codexCommand: process.env.HUNCHO_CODEX_COMMAND ?? "codex",
-    codexModel: process.env.HUNCHO_CODEX_MODEL,
-    chatTimeoutMs: Number.parseInt(process.env.HUNCHO_CHAT_TIMEOUT_MS ?? "120000", 10),
-    maxSearchResults: Number.parseInt(process.env.HUNCHO_MAX_SEARCH_RESULTS ?? "12", 10),
+    chatCommand: process.env.PATHMARK_CHAT_COMMAND,
+    codexCommand: process.env.PATHMARK_CODEX_COMMAND ?? "codex",
+    codexModel: process.env.PATHMARK_CODEX_MODEL,
+    chatTimeoutMs: Number.parseInt(process.env.PATHMARK_CHAT_TIMEOUT_MS ?? "120000", 10),
+    maxSearchResults: Number.parseInt(process.env.PATHMARK_MAX_SEARCH_RESULTS ?? "12", 10),
   };
 }
 
-function synthesisProvider(): HunchoConfig["synthesisProvider"] {
-  const value = process.env.HUNCHO_SYNTHESIS_PROVIDER;
+function synthesisProvider(): PathmarkConfig["synthesisProvider"] {
+  const value = process.env.PATHMARK_SYNTHESIS_PROVIDER;
   if (value === "command" || value === "codex") return value;
-  if (process.env.HUNCHO_CHAT_COMMAND) return "command";
+  if (process.env.PATHMARK_CHAT_COMMAND) return "command";
   return "client";
 }

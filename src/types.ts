@@ -1,8 +1,8 @@
-export type HunchoRecordKind = "memory" | "conclusion";
+export type PathmarkRecordKind = "memory" | "conclusion";
 
-export interface HunchoRecord {
+export interface PathmarkRecord {
   id: string;
-  kind: HunchoRecordKind;
+  kind: PathmarkRecordKind;
   text: string;
   tags: string[];
   source: string;
@@ -11,7 +11,7 @@ export interface HunchoRecord {
   deletedAt?: string;
 }
 
-export interface HunchoConfig {
+export interface PathmarkConfig {
   storeDir: string;
   memoryFile: string;
   synthesisProvider: "client" | "command" | "codex";
@@ -23,7 +23,7 @@ export interface HunchoConfig {
 }
 
 export interface SearchResult {
-  record: HunchoRecord;
+  record: PathmarkRecord;
   score: number;
   matchedTerms: string[];
 }

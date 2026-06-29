@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { HunchoConfig, HunchoRecord, HunchoRecordKind, SearchResult } from "./types.js";
+import type { PathmarkConfig, PathmarkRecord, PathmarkRecordKind, SearchResult } from "./types.js";
 
 const WORD_RE = /[\p{L}\p{N}_'-]+/gu;
 
-export class HunchoStore {
-  constructor(private readonly config: HunchoConfig) {}
+export class PathmarkStore {
+  constructor(private readonly config: PathmarkConfig) {}
 
   async ensureReady(): Promise<void> {
     await mkdir(this.config.storeDir, { recursive: true });
@@ -19,11 +19,11 @@ export class HunchoStore {
   }
 
   async add(input: {
-    kind: HunchoRecordKind;
+    kind: PathmarkRecordKind;
     text: string;
     tags?: string[];
     source?: string;
-  }): Promise<HunchoRecord> {
+  }): Promise<PathmarkRecord> {
     await this.ensureReady();
     const now = new Date().toISOString();
     const normalizedText = input.text.trim();
@@ -31,7 +31,7 @@ export class HunchoStore {
       throw new Error("text is required");
     }
 
-    const record: HunchoRecord = {
+    const record: PathmarkRecord = {
       id: randomUUID(),
       kind: input.kind,
       text: normalizedText,
@@ -45,20 +45,20 @@ export class HunchoStore {
     return record;
   }
 
-  async all(options: { includeDeleted?: boolean; kind?: HunchoRecordKind } = {}): Promise<HunchoRecord[]> {
+  async all(options: { includeDeleted?: boolean; kind?: PathmarkRecordKind } = {}): Promise<PathmarkRecord[]> {
     await this.ensureReady();
     const raw = await readFile(this.config.memoryFile, "utf8");
     const records = raw
       .split("\n")
       .filter(Boolean)
-      .map((line) => JSON.parse(line) as HunchoRecord)
+      .map((line) => JSON.parse(line) as PathmarkRecord)
       .filter((record) => options.includeDeleted || !record.deletedAt)
       .filter((record) => !options.kind || record.kind === options.kind);
 
     return records.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  async delete(id: string): Promise<HunchoRecord | undefined> {
+  async delete(id: string): Promise<PathmarkRecord | undefined> {
     const records = await this.all({ includeDeleted: true });
     const existing = records.find((record) => record.id === id && !record.deletedAt);
     if (!existing) return undefined;
@@ -75,7 +75,7 @@ export class HunchoStore {
     query: string;
     limit?: number;
     tags?: string[];
-    kind?: HunchoRecordKind;
+    kind?: PathmarkRecordKind;
   }): Promise<SearchResult[]> {
     const queryTerms = tokenize(input.query);
     const tagFilter = normalizeTags(input.tags ?? []);
@@ -98,13 +98,13 @@ export class HunchoStore {
       .slice(0, limit);
   }
 
-  private async append(record: HunchoRecord): Promise<void> {
+  private async append(record: PathmarkRecord): Promise<void> {
     const line = `${JSON.stringify(record)}\n`;
     const existing = await readFile(this.config.memoryFile, "utf8");
     await writeFile(this.config.memoryFile, `${existing}${line}`, "utf8");
   }
 
-  private async rewrite(records: HunchoRecord[]): Promise<void> {
+  private async rewrite(records: PathmarkRecord[]): Promise<void> {
     await mkdir(this.config.storeDir, { recursive: true });
     const tmp = path.join(
       this.config.storeDir,
@@ -124,7 +124,7 @@ function tokenize(text: string): string[] {
   return [...new Set((text.toLowerCase().match(WORD_RE) ?? []).filter((term) => term.length > 1))];
 }
 
-function scoreRecord(record: HunchoRecord, queryTerms: string[]): SearchResult {
+function scoreRecord(record: PathmarkRecord, queryTerms: string[]): SearchResult {
   const haystack = `${record.text} ${record.tags.join(" ")} ${record.source}`.toLowerCase();
   const textTerms = tokenize(record.text);
   const matchedTerms = queryTerms.filter((term) => haystack.includes(term));

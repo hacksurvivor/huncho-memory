@@ -5,21 +5,21 @@ import { z } from "zod";
 import { synthesizeWithCommand } from "./chat.js";
 import { loadConfig } from "./config.js";
 import { jsonText, publicConfig, summarizeRecords, summarizeSearch } from "./format.js";
-import { HunchoStore } from "./store.js";
+import { PathmarkStore } from "./store.js";
 
 const config = loadConfig();
-const store = new HunchoStore(config);
+const store = new PathmarkStore(config);
 
 const server = new McpServer({
-  name: "huncho-memory",
+  name: "pathmark",
   version: "0.1.0",
 });
 
 server.registerTool(
   "get_config",
   {
-    title: "Get Huncho configuration",
-    description: "Show the local Huncho Memory store location and enabled optional features.",
+    title: "Get Pathmark configuration",
+    description: "Show the local Pathmark Memory store location and enabled optional features.",
     inputSchema: {},
   },
   async () => jsonText(publicConfig(config)),
@@ -141,7 +141,7 @@ server.registerTool(
   {
     title: "Ask memory",
     description:
-      "Retrieve relevant context and optionally synthesize an answer through HUNCHO_CHAT_COMMAND. Without a command, returns context for the MCP client to synthesize.",
+      "Retrieve relevant context and optionally synthesize an answer through PATHMARK_CHAT_COMMAND. Without a command, returns context for the MCP client to synthesize.",
     inputSchema: {
       question: z.string().min(1),
       limit: z.number().int().min(1).max(30).optional(),

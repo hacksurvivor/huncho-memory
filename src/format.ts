@@ -1,4 +1,4 @@
-import type { HunchoConfig, HunchoRecord, SearchResult } from "./types.js";
+import type { PathmarkConfig, PathmarkRecord, SearchResult } from "./types.js";
 
 export function jsonText(value: unknown): { content: Array<{ type: "text"; text: string }> } {
   return {
@@ -11,7 +11,7 @@ export function jsonText(value: unknown): { content: Array<{ type: "text"; text:
   };
 }
 
-export function publicConfig(config: HunchoConfig): Record<string, unknown> {
+export function publicConfig(config: PathmarkConfig): Record<string, unknown> {
   return {
     storeDir: config.storeDir,
     memoryFile: config.memoryFile,
@@ -24,7 +24,7 @@ export function publicConfig(config: HunchoConfig): Record<string, unknown> {
   };
 }
 
-export function summarizeRecords(records: HunchoRecord[]): string {
+export function summarizeRecords(records: PathmarkRecord[]): string {
   if (records.length === 0) return "No records found.";
 
   return records
