@@ -96,9 +96,10 @@ export async function writeback(input: CodexHookInput): Promise<string> {
     const session = sessionId(input);
     const turns = await readCodexTranscriptStrict(input.transcript_path);
     const cursor = await readCursorState(config.storeDir, session);
+    const legacyCursorUnknown = cursor.count > 0 && !cursor.transcriptFingerprint;
     const replacedTranscript = transcriptReplaced(cursor, turns);
-    const rotatedTranscript = cursor.count > turns.length || replacedTranscript;
-    const rotationDiscriminator = rotatedTranscript ? transcriptRotationDiscriminator(turns) : undefined;
+    const rotatedTranscript = cursor.count > turns.length || replacedTranscript || legacyCursorUnknown;
+    const rotationDiscriminator = rotatedTranscript && !legacyCursorUnknown ? transcriptRotationDiscriminator(turns) : undefined;
     const freshTurns = turns.slice(rotatedTranscript ? 0 : cursor.count);
     const immediatePrompts = await immediatePromptRecords(store, session);
 

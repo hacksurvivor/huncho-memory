@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { observe, prompt, recall, writeback } from "../dist/codex/capture.js";
-import { readCursor, writeCursor } from "../dist/codex/cursor.js";
+import { cursorPath, readCursor, writeCursor } from "../dist/codex/cursor.js";
 import { summarizeToolUse } from "../dist/codex/tool-summary.js";
 import { readCodexTranscript } from "../dist/codex/transcript.js";
 import { loadConfig } from "../dist/config.js";
@@ -698,6 +698,46 @@ try {
     (await captureStore.all()).some((record) => record.source === "codex:session:malformed-message-session"),
     false,
   );
+
+  const legacyCursorStore = createStore("legacy-cursor-replacement");
+  const legacyCursorStoreDir = loadConfig().storeDir;
+  const legacyCursorSession = "legacy-count-session";
+  const legacyCursorFile = cursorPath(legacyCursorStoreDir, legacyCursorSession);
+  await mkdir(path.dirname(legacyCursorFile), { recursive: true });
+  await writeFile(legacyCursorFile, JSON.stringify({ count: 2 }, null, 2), "utf8");
+  const legacyCursorTranscript = path.join(temp, "legacy-cursor-transcript.jsonl");
+  await writeFile(
+    legacyCursorTranscript,
+    [
+      JSON.stringify({
+        timestamp: "2026-06-29T00:45:10.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Legacy cursor fresh turn one." }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-29T00:45:11.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Legacy cursor fresh turn two." }],
+        },
+      }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  await writeback({ session_id: legacyCursorSession, transcript_path: legacyCursorTranscript });
+  const legacyCursorRecords = await legacyCursorStore.all();
+  assert.equal(legacyCursorRecords.some((record) => record.text === "Legacy cursor fresh turn one."), true);
+  assert.equal(legacyCursorRecords.some((record) => record.text === "Legacy cursor fresh turn two."), true);
+  assert.equal(await readCursor(legacyCursorStoreDir, legacyCursorSession), 2);
+  const legacyCursorState = JSON.parse(await readFile(legacyCursorFile, "utf8"));
+  assert.equal(typeof legacyCursorState.transcriptFingerprint, "string");
+  assert.equal(legacyCursorState.transcriptFingerprint.length > 0, true);
 
   const replacementStore = createStore("cursor-replacement");
   const replacementStoreDir = loadConfig().storeDir;
