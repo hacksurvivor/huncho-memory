@@ -140,6 +140,32 @@ Use a dry run first when migrating another machine:
 npm run import:honcho -- --dry-run
 ```
 
+## Codex Auto-Capture
+
+Install Pathmark as the Codex memory adapter:
+
+```bash
+pathmark codex install --replace-honcho
+```
+
+This registers the Pathmark MCP server, enables Codex hooks, and removes old Honcho hook commands from Codex. It does not delete or move Honcho memory; data at `~/.honcho/codex/local` is preserved.
+
+Use `--replace-honcho` when you want Pathmark hooks to take over from `codex-honcho`. Without it, Pathmark installs alongside any existing Honcho hook commands.
+
+Check the adapter status:
+
+```bash
+pathmark codex status
+```
+
+The status output is JSON and includes Pathmark hook state, MCP registration state, Honcho hook presence, the active store paths, and the current record count.
+
+Remove Pathmark hooks and MCP registration without deleting memory:
+
+```bash
+pathmark codex uninstall
+```
+
 ## Configuration
 
 | Variable | Default | Description |

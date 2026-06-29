@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -1149,6 +1150,146 @@ try {
   await removePathmarkMcp(configPath);
   assert.equal(await readFile(configPath, "utf8"), removedConfig);
 
+  const cliCodexHome = path.join(temp, "cli-codex-home");
+  const cliStoreDir = path.join(temp, "cli-store");
+  const cliHonchoDataDir = path.join(temp, "cli-honcho-data");
+  await mkdir(cliCodexHome, { recursive: true });
+  await mkdir(cliHonchoDataDir, { recursive: true });
+  await writeFile(path.join(cliHonchoDataDir, "memory.jsonl"), '{"kept":true}\n', "utf8");
+  await writeFile(
+    path.join(cliCodexHome, "hooks.json"),
+    JSON.stringify(
+      {
+        hooks: {
+          UserPromptSubmit: [
+            { hooks: [{ type: "command", command: "node /Users/mac/.codex/honcho/codex-honcho.mjs prompt" }] },
+          ],
+        },
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+
+  const cliEnv = {
+    ...process.env,
+    CODEX_HOME: cliCodexHome,
+    PATHMARK_STORE_DIR: cliStoreDir,
+  };
+  const initialStatusRun = runCli(["status"], { env: cliEnv });
+  assert.equal(initialStatusRun.status, 0, initialStatusRun.stderr);
+  const initialStatus = JSON.parse(initialStatusRun.stdout);
+  assert.equal(initialStatus.pathmarkHooksInstalled, false);
+  assert.equal(initialStatus.pathmarkMcpRegistered, false);
+  assert.equal(initialStatus.codexHooksFeatureEnabled, false);
+  assert.equal(initialStatus.honchoHooksPresent, true);
+  assert.equal(initialStatus.storeDir, cliStoreDir);
+  assert.equal(initialStatus.memoryFile, path.join(cliStoreDir, "memory.jsonl"));
+  assert.equal(typeof initialStatus.recordCount, "number");
+
+  const installRun = runCli(["install", "--replace-honcho"], { env: cliEnv });
+  assert.equal(installRun.status, 0, installRun.stderr);
+  assert.equal(installRun.stdout.includes("Installed Pathmark Codex hooks and MCP server."), true);
+  const installedStatusRun = runCli(["status"], { env: cliEnv });
+  assert.equal(installedStatusRun.status, 0, installedStatusRun.stderr);
+  const installedStatus = JSON.parse(installedStatusRun.stdout);
+  assert.equal(installedStatus.pathmarkHooksInstalled, true);
+  assert.equal(installedStatus.pathmarkMcpRegistered, true);
+  assert.equal(installedStatus.codexHooksFeatureEnabled, true);
+  assert.equal(installedStatus.honchoHooksPresent, false);
+  assert.equal((await readFile(path.join(cliCodexHome, "hooks.json"), "utf8")).includes("codex-honcho"), false);
+  assert.equal((await readFile(path.join(cliHonchoDataDir, "memory.jsonl"), "utf8")).includes('"kept":true'), true);
+
+  const promptRun = runCli(["prompt"], {
+    env: cliEnv,
+    input: JSON.stringify({
+      cwd: "/tmp/pathmark-cli",
+      session_id: "cli-session",
+      prompt: "Remember the CLI capture path.",
+    }),
+  });
+  assert.equal(promptRun.status, 0, promptRun.stderr);
+  const promptOutput = JSON.parse(promptRun.stdout);
+  assert.equal(promptOutput.hookSpecificOutput.hookEventName, "UserPromptSubmit");
+  assert.equal(promptOutput.hookSpecificOutput.additionalContext.includes("<pathmark-memory-nudge>"), true);
+
+  const promptStatusRun = runCli(["status"], { env: cliEnv });
+  assert.equal(promptStatusRun.status, 0, promptStatusRun.stderr);
+  assert.equal(JSON.parse(promptStatusRun.stdout).recordCount, 1);
+
+  const recallRun = runCli(["recall"], {
+    env: cliEnv,
+    input: JSON.stringify({
+      cwd: "/tmp/pathmark-cli",
+      session_id: "cli-session",
+    }),
+  });
+  assert.equal(recallRun.status, 0, recallRun.stderr);
+  const cliRecallOutput = JSON.parse(recallRun.stdout);
+  assert.equal(cliRecallOutput.hookSpecificOutput.hookEventName, "SessionStart");
+  assert.equal(cliRecallOutput.hookSpecificOutput.additionalContext.includes("CLI capture path"), true);
+
+  const observeRun = runCli(["observe"], {
+    env: cliEnv,
+    input: JSON.stringify({
+      session_id: "cli-session",
+      tool_name: "functions.exec_command",
+      tool_input: { cmd: "npm test" },
+    }),
+  });
+  assert.equal(observeRun.status, 0, observeRun.stderr);
+  assert.equal(observeRun.stdout, "");
+
+  const cliTranscript = path.join(temp, "cli-transcript.jsonl");
+  await writeFile(
+    cliTranscript,
+    [
+      JSON.stringify({
+        timestamp: "2026-06-29T01:00:00.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "CLI writeback durable turn." }],
+        },
+      }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  const writebackRun = runCli(["writeback"], {
+    env: cliEnv,
+    input: JSON.stringify({
+      session_id: "cli-writeback-session",
+      transcript_path: cliTranscript,
+    }),
+  });
+  assert.equal(writebackRun.status, 0, writebackRun.stderr);
+  assert.equal(writebackRun.stdout, "");
+  const writebackStatusRun = runCli(["status"], { env: cliEnv });
+  assert.equal(writebackStatusRun.status, 0, writebackStatusRun.stderr);
+  assert.equal(JSON.parse(writebackStatusRun.stdout).recordCount, 3);
+
+  const invalidRun = runCli(["recall"], { env: cliEnv, input: "{not-json" });
+  assert.equal(invalidRun.status, 0, invalidRun.stderr);
+  assert.equal(invalidRun.stdout, "");
+  assert.equal(invalidRun.stderr, "");
+
+  const unknownRun = runCli(["unknown"], { env: cliEnv });
+  assert.equal(unknownRun.status, 2);
+  assert.equal(unknownRun.stderr.includes("Usage: pathmark codex"), true);
+
+  const uninstallRun = runCli(["uninstall"], { env: cliEnv });
+  assert.equal(uninstallRun.status, 0, uninstallRun.stderr);
+  assert.equal(uninstallRun.stdout.includes("Removed Pathmark Codex hooks and MCP server registration."), true);
+  const uninstalledStatusRun = runCli(["status"], { env: cliEnv });
+  assert.equal(uninstalledStatusRun.status, 0, uninstalledStatusRun.stderr);
+  const uninstalledStatus = JSON.parse(uninstalledStatusRun.stdout);
+  assert.equal(uninstalledStatus.pathmarkHooksInstalled, false);
+  assert.equal(uninstalledStatus.pathmarkMcpRegistered, false);
+  assert.equal(uninstalledStatus.honchoHooksPresent, false);
+  assert.equal((await readFile(path.join(cliHonchoDataDir, "memory.jsonl"), "utf8")).includes('"kept":true'), true);
+
   console.log("Codex adapter base tests passed");
 } finally {
   await rm(temp, { recursive: true, force: true });
@@ -1169,6 +1310,15 @@ function pathmarkHookCommandCount(hooksText) {
   return Object.values(parsed.hooks)
     .flatMap((groups) => groups.flatMap((group) => group.hooks ?? []))
     .filter((hook) => typeof hook.command === "string" && /\bpathmark\b[\s\S]*\bcodex\b/.test(hook.command)).length;
+}
+
+function runCli(args, options = {}) {
+  return spawnSync(process.execPath, ["dist/index.js", "codex", ...args], {
+    cwd: process.cwd(),
+    env: options.env ?? process.env,
+    input: options.input,
+    encoding: "utf8",
+  });
 }
 
 function restoreEnv(name, value) {
