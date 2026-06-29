@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { PathmarkConfig, PathmarkRecord, PathmarkRecordKind, SearchResult } from "./types.js";
+import type { PathmarkConfig, PathmarkRecord, PathmarkRecordDraft, PathmarkRecordKind, SearchResult } from "./types.js";
 
 const WORD_RE = /[\p{L}\p{N}_'-]+/gu;
 
@@ -18,12 +18,12 @@ export class PathmarkStore {
     }
   }
 
-  async add(input: {
-    kind: PathmarkRecordKind;
-    text: string;
-    tags?: string[];
-    source?: string;
-  }): Promise<PathmarkRecord> {
+  async add(input: PathmarkRecordDraft): Promise<PathmarkRecord> {
+    const { record } = await this.addRecord(input);
+    return record;
+  }
+
+  async addRecord(input: PathmarkRecordDraft): Promise<{ record: PathmarkRecord; created: boolean }> {
     await this.ensureReady();
     const now = new Date().toISOString();
     const normalizedText = input.text.trim();
@@ -31,18 +31,24 @@ export class PathmarkStore {
       throw new Error("text is required");
     }
 
+    const id = input.id?.trim() || randomUUID();
+    const existing = (await this.all({ includeDeleted: true })).find((record) => record.id === id);
+    if (existing) {
+      return { record: existing, created: false };
+    }
+
     const record: PathmarkRecord = {
-      id: randomUUID(),
+      id,
       kind: input.kind,
       text: normalizedText,
       tags: normalizeTags(input.tags ?? []),
       source: input.source?.trim() || "mcp",
-      createdAt: now,
-      updatedAt: now,
+      createdAt: input.createdAt ?? now,
+      updatedAt: input.updatedAt ?? input.createdAt ?? now,
     };
 
     await this.append(record);
-    return record;
+    return { record, created: true };
   }
 
   async all(options: { includeDeleted?: boolean; kind?: PathmarkRecordKind } = {}): Promise<PathmarkRecord[]> {
@@ -56,6 +62,10 @@ export class PathmarkStore {
       .filter((record) => !options.kind || record.kind === options.kind);
 
     return records.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async count(): Promise<number> {
+    return (await this.all({ includeDeleted: true })).length;
   }
 
   async delete(id: string): Promise<PathmarkRecord | undefined> {
@@ -130,10 +140,23 @@ function scoreRecord(record: PathmarkRecord, queryTerms: string[]): SearchResult
   const matchedTerms = queryTerms.filter((term) => haystack.includes(term));
   const exactTextMatches = matchedTerms.filter((term) => textTerms.includes(term)).length;
   const tagMatches = matchedTerms.filter((term) => record.tags.includes(term)).length;
+  const priority = scorePriority(record);
 
   return {
     record,
-    score: matchedTerms.length + exactTextMatches * 2 + tagMatches * 3,
+    score: matchedTerms.length + exactTextMatches * 2 + tagMatches * 3 + priority,
     matchedTerms,
   };
+}
+
+function scorePriority(record: PathmarkRecord): number {
+  if (record.kind === "conclusion") return 8;
+  if (record.tags.includes("codex-summary")) return 6;
+  if (record.tags.includes("project-note")) return 5;
+  if (record.tags.includes("decision")) return 5;
+  if (record.tags.includes("role-user")) return 3;
+  if (record.tags.includes("role-assistant")) return 2;
+  if (record.tags.includes("role-tool")) return -4;
+  if (record.tags.includes("honcho-import")) return -1;
+  return 0;
 }

@@ -17,6 +17,7 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "smoke": "node scripts/smoke.mjs",
+    "test:codex-adapter": "npm run build && node scripts/test-codex-adapter.mjs",
     "import:honcho": "node scripts/import-honcho.mjs",
     "prepack": "npm run build"
   },

@@ -9,6 +9,15 @@ export interface PathmarkRecord {
     updatedAt: string;
     deletedAt?: string;
 }
+export interface PathmarkRecordDraft {
+    id?: string;
+    kind: PathmarkRecordKind;
+    text: string;
+    tags?: string[];
+    source?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
 export interface PathmarkConfig {
     storeDir: string;
     memoryFile: string;

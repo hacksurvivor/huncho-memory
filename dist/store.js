@@ -19,23 +19,32 @@ export class PathmarkStore {
         }
     }
     async add(input) {
+        const { record } = await this.addRecord(input);
+        return record;
+    }
+    async addRecord(input) {
         await this.ensureReady();
         const now = new Date().toISOString();
         const normalizedText = input.text.trim();
         if (!normalizedText) {
             throw new Error("text is required");
         }
+        const id = input.id?.trim() || randomUUID();
+        const existing = (await this.all({ includeDeleted: true })).find((record) => record.id === id);
+        if (existing) {
+            return { record: existing, created: false };
+        }
         const record = {
-            id: randomUUID(),
+            id,
             kind: input.kind,
             text: normalizedText,
             tags: normalizeTags(input.tags ?? []),
             source: input.source?.trim() || "mcp",
-            createdAt: now,
-            updatedAt: now,
+            createdAt: input.createdAt ?? now,
+            updatedAt: input.updatedAt ?? input.createdAt ?? now,
         };
         await this.append(record);
-        return record;
+        return { record, created: true };
     }
     async all(options = {}) {
         await this.ensureReady();
@@ -47,6 +56,9 @@ export class PathmarkStore {
             .filter((record) => options.includeDeleted || !record.deletedAt)
             .filter((record) => !options.kind || record.kind === options.kind);
         return records.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    }
+    async count() {
+        return (await this.all({ includeDeleted: true })).length;
     }
     async delete(id) {
         const records = await this.all({ includeDeleted: true });
@@ -102,10 +114,30 @@ function scoreRecord(record, queryTerms) {
     const matchedTerms = queryTerms.filter((term) => haystack.includes(term));
     const exactTextMatches = matchedTerms.filter((term) => textTerms.includes(term)).length;
     const tagMatches = matchedTerms.filter((term) => record.tags.includes(term)).length;
+    const priority = scorePriority(record);
     return {
         record,
-        score: matchedTerms.length + exactTextMatches * 2 + tagMatches * 3,
+        score: matchedTerms.length + exactTextMatches * 2 + tagMatches * 3 + priority,
         matchedTerms,
     };
+}
+function scorePriority(record) {
+    if (record.kind === "conclusion")
+        return 8;
+    if (record.tags.includes("codex-summary"))
+        return 6;
+    if (record.tags.includes("project-note"))
+        return 5;
+    if (record.tags.includes("decision"))
+        return 5;
+    if (record.tags.includes("role-user"))
+        return 3;
+    if (record.tags.includes("role-assistant"))
+        return 2;
+    if (record.tags.includes("role-tool"))
+        return -4;
+    if (record.tags.includes("honcho-import"))
+        return -1;
+    return 0;
 }
 //# sourceMappingURL=store.js.map
