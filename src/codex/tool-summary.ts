@@ -45,9 +45,10 @@ export function summarizeToolUse(input: ToolHookInput): string {
   if (SHELL_TOOLS.has(name)) {
     const command = shellCommand(input.tool_input).trim();
     if (!command) return "";
-    if (isPathmarkShellCommand(command)) return "";
-    if (isTrivialShellCommand(command)) return "";
-    const redacted = redactSecrets(command);
+    const summaryCommand = nonPathmarkShellCommand(command);
+    if (!summaryCommand) return "";
+    if (isTrivialShellCommand(summaryCommand)) return "";
+    const redacted = redactSecrets(summaryCommand);
     return `ran: ${redacted.text.slice(0, 200)}`;
   }
 
@@ -88,17 +89,33 @@ function changedFiles(patch: string): string[] {
 }
 
 function isPathmarkShellCommand(command: string): boolean {
+  return shellSegments(command).some(isPathmarkShellSegment);
+}
+
+function nonPathmarkShellCommand(command: string): string {
+  const segments = shellSegments(command);
+  if (segments.length === 0) return command;
+
+  const nonPathmarkSegments = segments.filter((segment) => !isPathmarkShellSegment(segment));
+  if (nonPathmarkSegments.length === 0) return "";
+  if (nonPathmarkSegments.length === segments.length) return command;
+  return nonPathmarkSegments.join(" && ");
+}
+
+function shellSegments(command: string): string[] {
   return command
     .split(/\s*(?:&&|\|\||;|\|)\s*/)
     .map(stripLeadingEnvAssignments)
-    .some((segment) => {
-      return (
-        /^pathmark(?:\s|$)/.test(segment) ||
-        /^npx(?:\s+(?:--yes|-y))*\s+pathmark(?:\s|$)/.test(segment) ||
-        /^node(?:\s+--?[^\s]+)*\s+\S*pathmark\S*(?:\s|$)/.test(segment) ||
-        /^node\b[\s\S]*\bdist\/index\.js\s+codex(?:\s|$)/.test(segment)
-      );
-    });
+    .filter(Boolean);
+}
+
+function isPathmarkShellSegment(segment: string): boolean {
+  return (
+    /^pathmark(?:\s|$)/.test(segment) ||
+    /^npx(?:\s+(?:--yes|-y))*\s+pathmark(?:\s|$)/.test(segment) ||
+    /^node(?:\s+--?[^\s]+)*\s+\S*pathmark\S*(?:\s|$)/.test(segment) ||
+    /^node\b[\s\S]*\bdist\/index\.js\s+codex(?:\s|$)/.test(segment)
+  );
 }
 
 function stripLeadingEnvAssignments(command: string): string {

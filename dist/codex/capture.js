@@ -4,7 +4,7 @@ import { loadConfig } from "../config.js";
 import { deterministicId } from "../ids.js";
 import { redactSecrets } from "../redact.js";
 import { PathmarkStore } from "../store.js";
-import { readCursor, writeCursor } from "./cursor.js";
+import { readCursorState, writeCursor } from "./cursor.js";
 import { summarizeToolUse } from "./tool-summary.js";
 import { readCodexTranscriptStrict } from "./transcript.js";
 const TRIVIAL_PROMPT = /^(?:y|n|yes|no|ok|okay|sure|thanks|yep|nope|continue|go ahead|do it|proceed)\.?$/i;
@@ -81,10 +81,11 @@ export async function writeback(input) {
         const store = new PathmarkStore(config);
         const session = sessionId(input);
         const turns = await readCodexTranscriptStrict(input.transcript_path);
-        const cursor = await readCursor(config.storeDir, session);
-        const rotatedTranscript = cursor > turns.length;
+        const cursor = await readCursorState(config.storeDir, session);
+        const replacedTranscript = transcriptReplaced(cursor, turns);
+        const rotatedTranscript = cursor.count > turns.length || replacedTranscript;
         const rotationDiscriminator = rotatedTranscript ? transcriptRotationDiscriminator(turns) : undefined;
-        const freshTurns = turns.slice(rotatedTranscript ? 0 : cursor);
+        const freshTurns = turns.slice(rotatedTranscript ? 0 : cursor.count);
         const immediatePrompts = await immediatePromptRecords(store, session);
         for (const turn of freshTurns) {
             if (turn.role === "user" && shouldSkipUserPrompt(turn.text))
@@ -102,14 +103,27 @@ export async function writeback(input) {
                 stablePart: rotationDiscriminator ? `rotation:${rotationDiscriminator}:${turn.index}` : String(turn.index),
             }));
         }
-        await writeCursor(config.storeDir, session, turns.length);
+        await writeCursor(config.storeDir, session, turns.length, {
+            transcriptFingerprint: transcriptFingerprint(turns),
+        });
     }
     catch {
         return "";
     }
     return "";
 }
+function transcriptReplaced(cursor, turns) {
+    if (cursor.count <= 0 || cursor.count > turns.length || !cursor.transcriptFingerprint)
+        return false;
+    return cursor.transcriptFingerprint !== transcriptFingerprint(turns.slice(0, cursor.count));
+}
+function transcriptFingerprint(turns) {
+    return hashTurns(turns);
+}
 function transcriptRotationDiscriminator(turns) {
+    return hashTurns(turns);
+}
+function hashTurns(turns) {
     const hash = createHash("sha256");
     for (const turn of turns) {
         hash.update(turn.role);
@@ -210,7 +224,7 @@ function filterRecallResults(results, input) {
             return true;
         if (workspaceTag && tags.some((tag) => tag.startsWith("workspace:")))
             return tags.includes(workspaceTag);
-        if (workspaceTag && tags.some((tag) => tag.startsWith("project:")))
+        if (workspaceTag)
             return false;
         const haystack = `${record.text} ${record.tags.join(" ")} ${record.source}`.toLowerCase();
         return specificTerms.some((term) => haystack.includes(term.toLowerCase()));

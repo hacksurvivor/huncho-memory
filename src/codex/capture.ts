@@ -5,7 +5,7 @@ import { deterministicId } from "../ids.js";
 import { redactSecrets } from "../redact.js";
 import { PathmarkStore } from "../store.js";
 import type { PathmarkRecordDraft, SearchResult } from "../types.js";
-import { readCursor, writeCursor } from "./cursor.js";
+import { readCursorState, writeCursor } from "./cursor.js";
 import { summarizeToolUse } from "./tool-summary.js";
 import { readCodexTranscriptStrict } from "./transcript.js";
 
@@ -95,10 +95,11 @@ export async function writeback(input: CodexHookInput): Promise<string> {
     const store = new PathmarkStore(config);
     const session = sessionId(input);
     const turns = await readCodexTranscriptStrict(input.transcript_path);
-    const cursor = await readCursor(config.storeDir, session);
-    const rotatedTranscript = cursor > turns.length;
+    const cursor = await readCursorState(config.storeDir, session);
+    const replacedTranscript = transcriptReplaced(cursor, turns);
+    const rotatedTranscript = cursor.count > turns.length || replacedTranscript;
     const rotationDiscriminator = rotatedTranscript ? transcriptRotationDiscriminator(turns) : undefined;
-    const freshTurns = turns.slice(rotatedTranscript ? 0 : cursor);
+    const freshTurns = turns.slice(rotatedTranscript ? 0 : cursor.count);
     const immediatePrompts = await immediatePromptRecords(store, session);
 
     for (const turn of freshTurns) {
@@ -117,7 +118,9 @@ export async function writeback(input: CodexHookInput): Promise<string> {
       );
     }
 
-    await writeCursor(config.storeDir, session, turns.length);
+    await writeCursor(config.storeDir, session, turns.length, {
+      transcriptFingerprint: transcriptFingerprint(turns),
+    });
   } catch {
     return "";
   }
@@ -125,7 +128,23 @@ export async function writeback(input: CodexHookInput): Promise<string> {
   return "";
 }
 
+function transcriptReplaced(
+  cursor: { count: number; transcriptFingerprint?: string },
+  turns: { role: string; index: number; at?: string; text: string }[],
+): boolean {
+  if (cursor.count <= 0 || cursor.count > turns.length || !cursor.transcriptFingerprint) return false;
+  return cursor.transcriptFingerprint !== transcriptFingerprint(turns.slice(0, cursor.count));
+}
+
+function transcriptFingerprint(turns: { role: string; index: number; at?: string; text: string }[]): string {
+  return hashTurns(turns);
+}
+
 function transcriptRotationDiscriminator(turns: { role: string; index: number; at?: string; text: string }[]): string {
+  return hashTurns(turns);
+}
+
+function hashTurns(turns: { role: string; index: number; at?: string; text: string }[]): string {
   const hash = createHash("sha256");
   for (const turn of turns) {
     hash.update(turn.role);
@@ -248,7 +267,7 @@ function filterRecallResults(results: SearchResult[], input: CodexHookInput): Se
     const source = record.source.toLowerCase();
     if (session && (source === `codex:session:${session}` || tags.includes(`session:${session}`))) return true;
     if (workspaceTag && tags.some((tag) => tag.startsWith("workspace:"))) return tags.includes(workspaceTag);
-    if (workspaceTag && tags.some((tag) => tag.startsWith("project:"))) return false;
+    if (workspaceTag) return false;
 
     const haystack = `${record.text} ${record.tags.join(" ")} ${record.source}`.toLowerCase();
     return specificTerms.some((term) => haystack.includes(term.toLowerCase()));

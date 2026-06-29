@@ -5,18 +5,31 @@ export function cursorPath(storeDir, sessionId) {
     return path.join(storeDir, "codex-cursors", `${safeSession}.json`);
 }
 export async function readCursor(storeDir, sessionId) {
+    return (await readCursorState(storeDir, sessionId)).count;
+}
+export async function readCursorState(storeDir, sessionId) {
     try {
         const parsed = JSON.parse(await readFile(cursorPath(storeDir, sessionId), "utf8"));
-        return typeof parsed.count === "number" && Number.isFinite(parsed.count) && parsed.count >= 0 ? parsed.count : 0;
+        return {
+            count: typeof parsed.count === "number" && Number.isFinite(parsed.count) && parsed.count >= 0 ? parsed.count : 0,
+            updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "",
+            transcriptFingerprint: typeof parsed.transcriptFingerprint === "string" && parsed.transcriptFingerprint
+                ? parsed.transcriptFingerprint
+                : undefined,
+        };
     }
     catch {
-        return 0;
+        return { count: 0, updatedAt: "" };
     }
 }
-export async function writeCursor(storeDir, sessionId, count) {
+export async function writeCursor(storeDir, sessionId, count, metadata = {}) {
     const file = cursorPath(storeDir, sessionId);
     const safeCount = Number.isFinite(count) && count >= 0 ? count : 0;
     await mkdir(path.dirname(file), { recursive: true });
-    await writeFile(file, JSON.stringify({ count: safeCount, updatedAt: new Date().toISOString() }, null, 2), "utf8");
+    await writeFile(file, JSON.stringify({
+        count: safeCount,
+        updatedAt: new Date().toISOString(),
+        ...(metadata.transcriptFingerprint ? { transcriptFingerprint: metadata.transcriptFingerprint } : {}),
+    }, null, 2), "utf8");
 }
 //# sourceMappingURL=cursor.js.map

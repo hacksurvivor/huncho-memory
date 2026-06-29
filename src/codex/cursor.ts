@@ -4,6 +4,7 @@ import path from "node:path";
 export interface CaptureCursor {
   count: number;
   updatedAt: string;
+  transcriptFingerprint?: string;
 }
 
 export function cursorPath(storeDir: string, sessionId: string): string {
@@ -12,17 +13,45 @@ export function cursorPath(storeDir: string, sessionId: string): string {
 }
 
 export async function readCursor(storeDir: string, sessionId: string): Promise<number> {
+  return (await readCursorState(storeDir, sessionId)).count;
+}
+
+export async function readCursorState(storeDir: string, sessionId: string): Promise<CaptureCursor> {
   try {
     const parsed = JSON.parse(await readFile(cursorPath(storeDir, sessionId), "utf8")) as Partial<CaptureCursor>;
-    return typeof parsed.count === "number" && Number.isFinite(parsed.count) && parsed.count >= 0 ? parsed.count : 0;
+    return {
+      count: typeof parsed.count === "number" && Number.isFinite(parsed.count) && parsed.count >= 0 ? parsed.count : 0,
+      updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : "",
+      transcriptFingerprint:
+        typeof parsed.transcriptFingerprint === "string" && parsed.transcriptFingerprint
+          ? parsed.transcriptFingerprint
+          : undefined,
+    };
   } catch {
-    return 0;
+    return { count: 0, updatedAt: "" };
   }
 }
 
-export async function writeCursor(storeDir: string, sessionId: string, count: number): Promise<void> {
+export async function writeCursor(
+  storeDir: string,
+  sessionId: string,
+  count: number,
+  metadata: { transcriptFingerprint?: string } = {},
+): Promise<void> {
   const file = cursorPath(storeDir, sessionId);
   const safeCount = Number.isFinite(count) && count >= 0 ? count : 0;
   await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, JSON.stringify({ count: safeCount, updatedAt: new Date().toISOString() }, null, 2), "utf8");
+  await writeFile(
+    file,
+    JSON.stringify(
+      {
+        count: safeCount,
+        updatedAt: new Date().toISOString(),
+        ...(metadata.transcriptFingerprint ? { transcriptFingerprint: metadata.transcriptFingerprint } : {}),
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
 }

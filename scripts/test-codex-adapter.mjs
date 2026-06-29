@@ -410,7 +410,14 @@ try {
   );
   assert.equal(
     summarizeToolUse({ tool_name: "functions.exec_command", tool_input: { cmd: "npm test && pathmark codex status" } }),
-    "",
+    "ran: npm test",
+  );
+  assert.equal(
+    summarizeToolUse({
+      tool_name: "functions.exec_command",
+      tool_input: { cmd: "rm -rf tmp-cache && pathmark codex status" },
+    }),
+    "ran: rm -rf tmp-cache",
   );
   assert.equal(
     summarizeToolUse({
@@ -692,6 +699,65 @@ try {
     false,
   );
 
+  const replacementStore = createStore("cursor-replacement");
+  const replacementStoreDir = loadConfig().storeDir;
+  const replacementTranscript = path.join(temp, "cursor-replacement-transcript.jsonl");
+  await writeFile(
+    replacementTranscript,
+    [
+      JSON.stringify({
+        timestamp: "2026-06-29T00:46:00.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Original replacement turn one." }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-29T00:46:01.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Original replacement turn two." }],
+        },
+      }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  await writeback({ session_id: "replacement-session", transcript_path: replacementTranscript });
+  assert.equal(await readCursor(replacementStoreDir, "replacement-session"), 2);
+  await writeFile(
+    replacementTranscript,
+    [
+      JSON.stringify({
+        timestamp: "2026-06-29T00:47:00.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Fresh replacement turn one." }],
+        },
+      }),
+      JSON.stringify({
+        timestamp: "2026-06-29T00:47:01.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Fresh replacement turn two." }],
+        },
+      }),
+    ].join("\n") + "\n",
+    "utf8",
+  );
+  await writeback({ session_id: "replacement-session", transcript_path: replacementTranscript });
+  const replacementRecords = await replacementStore.all();
+  assert.equal(replacementRecords.some((record) => record.text === "Fresh replacement turn one."), true);
+  assert.equal(replacementRecords.some((record) => record.text === "Fresh replacement turn two."), true);
+  assert.equal(await readCursor(replacementStoreDir, "replacement-session"), 2);
+
   const rotatedStore = createStore("rotated-cursor");
   const rotatedStoreDir = loadConfig().storeDir;
   const rotatedTranscript = path.join(temp, "rotated-transcript.jsonl");
@@ -850,6 +916,14 @@ try {
     source: "codex:session:other",
     createdAt: "2026-06-29T00:55:00.000Z",
   });
+  await workspaceRecallStore.addRecord({
+    id: deterministicId(["workspace-recall", "legacy-untagged"]),
+    kind: "memory",
+    text: "Legacy untagged api note must not leak.",
+    tags: ["codex-raw", "codex-session", "role-user", "session:other"],
+    source: "codex:session:other",
+    createdAt: "2026-06-29T00:55:01.000Z",
+  });
   const tmpApiRecall = await recall({
     cwd: "/tmp/api",
     session_id: "api-session-c",
@@ -857,6 +931,7 @@ try {
   assert.equal(tmpApiRecall.includes("beta endpoint behavior"), true);
   assert.equal(tmpApiRecall.includes("gamma endpoint behavior"), false);
   assert.equal(tmpApiRecall.includes("Legacy project-only api note"), false);
+  assert.equal(tmpApiRecall.includes("Legacy untagged api note"), false);
   const otherApiRecall = await recall({
     cwd: "/other/api",
     session_id: "api-session-d",
@@ -864,6 +939,19 @@ try {
   assert.equal(otherApiRecall.includes("gamma endpoint behavior"), true);
   assert.equal(otherApiRecall.includes("beta endpoint behavior"), false);
   assert.equal(otherApiRecall.includes("Legacy project-only api note"), false);
+  assert.equal(otherApiRecall.includes("Legacy untagged api note"), false);
+
+  const generalRecallStore = createStore("general-recall");
+  await generalRecallStore.addRecord({
+    id: deterministicId(["general-recall", "session-only"]),
+    kind: "memory",
+    text: "General session recall remains usable.",
+    tags: ["codex-raw", "codex-session", "role-user", "session:general-session"],
+    source: "codex:session:general-session",
+    createdAt: "2026-06-29T00:56:00.000Z",
+  });
+  const generalRecall = await recall({ session_id: "general-session" });
+  assert.equal(generalRecall.includes("General session recall remains usable."), true);
 
   console.log("Codex adapter base tests passed");
 } finally {
