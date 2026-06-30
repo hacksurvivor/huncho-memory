@@ -63,7 +63,7 @@ child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/ini
 
 const tools = await request("tools/list");
 const toolNames = tools.tools.map((tool) => tool.name);
-for (const required of ["remember", "search_memory", "get_context", "ask_memory", "chat"]) {
+for (const required of ["remember", "search_memory", "recall_memory", "get_context", "ask_memory", "chat"]) {
   if (!toolNames.includes(required)) {
     throw new Error(`Missing expected tool: ${required}`);
   }
@@ -102,6 +102,22 @@ const chat = await request("tools/call", {
 const chatText = chat.content?.[0]?.text ?? "";
 if (!chatText.includes("Pathmark smoke test memory")) {
   throw new Error("Chat did not return saved memory context");
+}
+if (!chatText.includes("usedMemories")) {
+  throw new Error("Chat did not return transparent used memory metadata");
+}
+
+const recall = await request("tools/call", {
+  name: "recall_memory",
+  arguments: {
+    query: "MCP smoke",
+    limit: 3,
+  },
+});
+
+const recallText = recall.content?.[0]?.text ?? "";
+if (!recallText.includes("Pathmark smoke test memory") || !recallText.includes("usedMemories")) {
+  throw new Error("Recall memory did not return transparent memory context");
 }
 
 child.kill("SIGTERM");

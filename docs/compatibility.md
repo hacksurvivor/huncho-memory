@@ -37,10 +37,11 @@ That file holds the shared memory. Each harness can call the same tools:
 
 - `remember` to save a fact, decision, preference, or project note.
 - `create_conclusion` to save a higher-signal durable insight.
+- `recall_memory` to recover relevant context and show exactly which memory IDs, timestamps, sources, and matches were used.
 - `search_memory` and `get_context` to recover relevant context.
 - `ask_memory` to retrieve context and optionally synthesize an answer.
 
-Pathmark provides the shared store and MCP tool surface today. Harness-specific hooks and importers will add automatic transcript capture.
+Pathmark provides the shared store and MCP tool surface today. `recall_memory` is the portable visible recall surface across Codex, Claude Code, Cursor, opencode, Gemini CLI, Grok-compatible MCP hosts, Hermes Agent, OpenClaw, Kimi/GLM hosts, and generic MCP clients. Harness-specific hooks and importers add automatic transcript capture where the host supports it.
 
 ## Generate Setup Snippets
 
@@ -63,16 +64,16 @@ Use `--json` when another installer or script should consume the output.
 | Client or model surface | Pathmark integration | Notes |
 | --- | --- | --- |
 | Codex | stdio MCP server | Use `codex mcp add pathmark -- pathmark`. Optional `codex` synthesis preset. |
-| Claude Code | stdio MCP server | Add as a local stdio MCP server. Keep synthesis as `client`. |
+| Claude Code | stdio MCP server | Add as a local stdio MCP server. Keep synthesis as `client`; call `recall_memory` for visible used-memory entries. |
 | Claude Desktop | stdio MCP server | Use `mcpServers.pathmark.command = "pathmark"`. |
-| Cursor | stdio MCP server | Add `pathmark` to Cursor MCP settings. |
-| opencode | stdio MCP server | Add Pathmark as a local MCP server command. |
-| Gemini CLI | stdio MCP server | Add Pathmark to Gemini CLI MCP server settings. |
-| Hermes Agent | stdio MCP server if MCP is enabled | Add Pathmark to the agent's MCP server list; keep memory local in `~/.pathmark`. |
-| OpenClaw | stdio MCP server if MCP tools are enabled | Register Pathmark as a local MCP tool server. |
+| Cursor | stdio MCP server | Add `pathmark` to Cursor MCP settings; call `recall_memory` for visible used-memory entries. |
+| opencode | stdio MCP server | Add Pathmark as a local MCP server command; call `recall_memory` for visible used-memory entries. |
+| Gemini CLI | stdio MCP server | Add Pathmark to Gemini CLI MCP server settings; call `recall_memory` for visible used-memory entries. |
+| Hermes Agent | stdio MCP server if MCP is enabled | Add Pathmark to the agent's MCP server list; keep memory local in `~/.pathmark`; call `recall_memory` for visible used-memory entries. |
+| OpenClaw | stdio MCP server if MCP tools are enabled | Register Pathmark as a local MCP tool server; call `recall_memory` for visible used-memory entries. |
 | Grok CLI / Grok Build | stdio MCP server when supported by the harness | If the Grok surface has MCP config, add Pathmark as a stdio server. Otherwise use `command` mode. |
-| Kimi models | MCP through a host, or `openai-compatible` / `command` synthesis | The agent harness provides MCP for raw models. |
-| GLM / Z.ai models | MCP through a host, or `openai-compatible` / `command` synthesis | Use an MCP-capable client, API gateway, or local CLI. |
+| Kimi models | MCP through a host, or `openai-compatible` / `command` synthesis | The agent harness provides MCP for raw models; use `recall_memory` in that host for a visible memory trace. |
+| GLM / Z.ai models | MCP through a host, or `openai-compatible` / `command` synthesis | Use an MCP-capable client, API gateway, or local CLI; use `recall_memory` in that host for a visible memory trace. |
 | Local models | MCP through a host, or `command` / `openai-compatible` synthesis | Works with Ollama/LiteLLM/local routers when exposed through CLI or compatible API. |
 
 ## Generic MCP Config
@@ -119,6 +120,12 @@ pathmark codex install --replace-legacy-hooks
 ```
 
 This removes old compatible hook commands from Codex without deleting memory files.
+
+Codex hooks inject memory automatically at session start/resume. When you want a visible tool-call entry that shows exactly which memories were used, call:
+
+```text
+mcp__pathmark__recall_memory
+```
 
 Optional Codex-backed synthesis works when the MCP client cannot synthesize and Codex CLI has local auth:
 

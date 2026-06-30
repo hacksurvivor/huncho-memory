@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { synthesizeWithCommand } from "./chat.js";
 import { loadConfig } from "./config.js";
-import { jsonText, publicConfig, summarizeRecords, summarizeSearch } from "./format.js";
+import { jsonText, publicConfig, summarizeRecords, summarizeSearch, usedMemories } from "./format.js";
 import { PathmarkStore } from "./store.js";
 
 export async function runMcpServer(): Promise<void> {
@@ -12,7 +12,7 @@ export async function runMcpServer(): Promise<void> {
 
   const server = new McpServer({
     name: "pathmark",
-    version: "0.1.0",
+    version: "0.1.2",
   });
 
   server.registerTool(
@@ -80,6 +80,7 @@ export async function runMcpServer(): Promise<void> {
           matchedTerms: result.matchedTerms,
         })),
         summary: summarizeSearch(results),
+        usedMemories: usedMemories(results),
       });
     },
   );
@@ -98,6 +99,29 @@ export async function runMcpServer(): Promise<void> {
       const results = await store.search({ query, limit });
       return jsonText({
         context: summarizeSearch(results),
+        usedMemories: usedMemories(results),
+        records: results.map((result) => result.record),
+      });
+    },
+  );
+
+  server.registerTool(
+    "recall_memory",
+    {
+      title: "Recall memory",
+      description:
+        "Transparent recall for any MCP-capable harness. Use this at task start or before answering to show exactly which memories were used.",
+      inputSchema: {
+        query: z.string().default("").describe("Task, repo, or question to retrieve memory for. Empty query returns recent records."),
+        limit: z.number().int().min(1).max(30).optional(),
+      },
+    },
+    async ({ query, limit }) => {
+      const results = await store.search({ query, limit });
+      return jsonText({
+        mode: "transparent_recall",
+        context: summarizeSearch(results),
+        usedMemories: usedMemories(results),
         records: results.map((result) => result.record),
       });
     },
@@ -174,6 +198,7 @@ export async function runMcpServer(): Promise<void> {
       answer: answer ?? null,
       synthesis: answer ? "server_command" : "client_should_synthesize",
       context: summarizeSearch(results),
+      usedMemories: usedMemories(results),
       records: results.map((result) => result.record),
     });
   }

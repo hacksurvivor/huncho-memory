@@ -17,7 +17,7 @@ You do not work in one tool. You ask Codex to patch, Claude Code to review, open
 Pathmark gives those tools one place to read and write memory:
 
 - One local JSONL store across harnesses.
-- Standard MCP tools: `remember`, `search_memory`, `get_context`, and `ask_memory`.
+- Standard MCP tools: `remember`, `search_memory`, `recall_memory`, `get_context`, and `ask_memory`.
 - Client-side synthesis by default, so your coding agent reads the context and answers.
 - Optional Codex CLI, local command, and OpenAI-compatible synthesis modes.
 - Plain files you can inspect, back up, delete, or migrate.
@@ -45,7 +45,7 @@ Gemini CLI  /
 Cursor     /
 ```
 
-Install Pathmark in each harness and point them at the same `PATHMARK_STORE_DIR`. One tool saves context with `remember` or `create_conclusion`; the next tool recovers it with `search_memory`, `get_context`, or `ask_memory`.
+Install Pathmark in each harness and point them at the same `PATHMARK_STORE_DIR`. One tool saves context with `remember` or `create_conclusion`; the next tool recovers it with `recall_memory`, `search_memory`, `get_context`, or `ask_memory`.
 
 Pathmark sits below the agents as a memory bus for your coding workflow.
 
@@ -58,6 +58,7 @@ Pathmark exposes these MCP tools:
 | `remember` | Save a raw memory item. |
 | `create_conclusion` | Save a higher-signal durable conclusion or preference. |
 | `search_memory` | Search memories and conclusions. |
+| `recall_memory` | Transparent recall: returns context plus the exact memory IDs, timestamps, sources, matches, tags, and previews used. |
 | `get_context` | Return compact context for a task or question. |
 | `list_conclusions` | List saved conclusions. |
 | `delete_memory` | Soft-delete a memory or conclusion by id. |
@@ -102,6 +103,8 @@ Codex users can also enable auto-capture:
 ```bash
 pathmark codex install --replace-legacy-hooks
 ```
+
+When you want the visible "what memory did you use?" entry in Codex, Claude Code, Cursor, opencode, Gemini CLI, Grok-compatible MCP hosts, or any other MCP harness, call the `recall_memory` tool before answering. Codex auto-capture still injects memory automatically on session start, but `recall_memory` is the portable visible trace across harnesses.
 
 ### Claude Code
 

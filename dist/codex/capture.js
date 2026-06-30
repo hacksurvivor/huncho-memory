@@ -51,7 +51,7 @@ export async function prompt(input) {
         return "";
     return [
         "<pathmark-memory-nudge>",
-        "This prompt may depend on Pathmark memory. Prefer mcp__pathmark__chat for synthesized answers and mcp__pathmark__search_memory when exact evidence is needed.",
+        "This prompt may depend on Pathmark memory. Prefer mcp__pathmark__recall_memory or mcp__pathmark__chat when the user wants visible memory entries; use mcp__pathmark__search_memory for exact records.",
         "</pathmark-memory-nudge>",
     ].join("\n");
 }
@@ -175,10 +175,10 @@ function memoryBlock(results, memoryFile) {
     return [
         "<pathmark-memory>",
         "Pathmark memory context:",
-        results.length > 0 ? summarizeResults(results) : "No matching Pathmark memory found.",
+        results.length > 0 ? `Used memories:\n${summarizeResults(results)}` : "No matching Pathmark memory found.",
         "",
         `Store: ${memoryFile}`,
-        "MCP tools: use mcp__pathmark__chat for synthesized memory answers or mcp__pathmark__search_memory for exact records.",
+        "MCP tools: use mcp__pathmark__recall_memory or mcp__pathmark__chat for visible memory entries; use mcp__pathmark__search_memory for exact records.",
         "</pathmark-memory>",
     ].join("\n");
 }
@@ -198,7 +198,13 @@ function summarizeResults(results) {
         .map((result, index) => {
         const record = result.record;
         const redacted = redactSecrets(record.text);
-        return `${index + 1}. ${record.kind}: ${truncate(redacted.text, RECALL_TEXT_LIMIT)}`;
+        const matches = result.matchedTerms.length > 0 ? ` matched=${result.matchedTerms.join(",")}` : "";
+        return [
+            `${index + 1}. ${record.kind} ${record.id}`,
+            `   createdAt: ${record.createdAt}`,
+            `   source: ${record.source}${matches}`,
+            `   preview: ${truncate(redacted.text, RECALL_TEXT_LIMIT)}`,
+        ].join("\n");
     })
         .join("\n");
 }

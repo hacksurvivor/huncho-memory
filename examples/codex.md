@@ -34,6 +34,9 @@ Use the MCP tools from Codex:
 
 - `remember`
 - `search_memory`
+- `recall_memory`
 - `get_context`
 - `create_conclusion`
 - `ask_memory`
+
+Use `recall_memory` when you want the visible entry showing exactly which memories were used.

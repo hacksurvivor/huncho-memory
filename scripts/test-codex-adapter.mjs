@@ -999,9 +999,13 @@ try {
   assert.equal(recallOutput.includes(["sk", "recallsecret"].join("-")), false);
   assert.equal(recallOutput.includes("[REDACTED]"), true);
   assert.equal(recallOutput.includes(recallTail), false);
-  assert.equal(recallOutput.includes(recallRecordId), false);
+  assert.equal(recallOutput.includes("Used memories:"), true);
+  assert.equal(recallOutput.includes(recallRecordId), true);
+  assert.equal(recallOutput.includes("createdAt:"), true);
+  assert.equal(recallOutput.includes("source: codex:session:recall-session"), true);
   assert.equal(recallOutput.includes("codex-session"), false);
   assert.equal(recallOutput.includes("Store:"), true);
+  assert.equal(recallOutput.includes("mcp__pathmark__recall_memory"), true);
   assert.equal(recallOutput.includes("mcp__pathmark__chat"), true);
 
   const noSignalStore = createStore("recall-no-signal");
@@ -1017,6 +1021,7 @@ try {
   assert.equal(noSignalRecall.includes("Arbitrary recent memory must not appear"), false);
   assert.equal(noSignalRecall.includes("No matching Pathmark memory found."), true);
   assert.equal(noSignalRecall.includes("Store:"), true);
+  assert.equal(noSignalRecall.includes("mcp__pathmark__recall_memory"), true);
   assert.equal(noSignalRecall.includes("mcp__pathmark__chat"), true);
 
   createStore("project-recall");

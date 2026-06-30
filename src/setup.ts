@@ -105,6 +105,7 @@ function setupGuide(target: SetupTarget): SetupGuide {
       env,
       notes: [
         "Use the install command when you want automatic Codex prompt/tool/transcript capture.",
+        "Use the recall_memory MCP tool when you want a visible list of exactly which memories were used.",
         "The --replace-legacy-hooks flag removes old Pathmark-compatible hook commands without deleting memory files.",
       ],
     };
@@ -119,6 +120,7 @@ function setupGuide(target: SetupTarget): SetupGuide {
       env,
       notes: [
         "Keep synthesis in client mode so Claude Code's own model answers from returned memory context.",
+        "Ask Claude Code to call recall_memory at task start when you want a visible memory trace.",
         "Use the same PATHMARK_STORE_DIR as Codex to share memory across harnesses.",
       ],
     };
@@ -139,7 +141,10 @@ function setupGuide(target: SetupTarget): SetupGuide {
           },
         },
       },
-      notes: ["Merge this into your opencode config and keep the same store directory across harnesses."],
+      notes: [
+        "Merge this into your opencode config and keep the same store directory across harnesses.",
+        "Call recall_memory before answering when you want the visible memory trace.",
+      ],
     };
   }
 
@@ -157,7 +162,10 @@ function setupGuide(target: SetupTarget): SetupGuide {
           },
         },
       },
-      notes: ["Place this in the Gemini CLI settings file that defines MCP servers."],
+      notes: [
+        "Place this in the Gemini CLI settings file that defines MCP servers.",
+        "Call recall_memory before answering when you want the visible memory trace.",
+      ],
     };
   }
 
@@ -176,7 +184,10 @@ function setupGuide(target: SetupTarget): SetupGuide {
           },
         },
       },
-      notes: ["Use this shape for MCP clients that accept mcpServers JSON."],
+      notes: [
+        "Use this shape for MCP clients that accept mcpServers JSON.",
+        "Call recall_memory before answering when you want the visible memory trace.",
+      ],
     };
   }
 
@@ -194,6 +205,7 @@ function setupGuide(target: SetupTarget): SetupGuide {
       },
       notes: [
         "Raw models still need an MCP-capable host to call Pathmark tools.",
+        "Use recall_memory through that host when you want a visible memory trace.",
         "The OpenAI-compatible mode affects ask_memory synthesis only; save/search tools remain local.",
       ],
     };
@@ -208,7 +220,10 @@ function setupGuide(target: SetupTarget): SetupGuide {
       PATHMARK_SYNTHESIS_PROVIDER: "command",
       PATHMARK_CHAT_COMMAND: "your-agent-cli chat --model your-model",
     },
-    notes: ["PATHMARK_CHAT_COMMAND receives the memory prompt on stdin and must write an answer to stdout."],
+    notes: [
+      "PATHMARK_CHAT_COMMAND receives the memory prompt on stdin and must write an answer to stdout.",
+      "Use recall_memory through an MCP host when you want a visible memory trace.",
+    ],
   };
 }
 
