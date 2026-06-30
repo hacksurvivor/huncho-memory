@@ -17,7 +17,8 @@ Confirm the tarball includes:
 - `dist/codex/cli.js`
 - `dist/codex/capture.js`
 - `dist/codex/hooks.js`
-- `assets/pathmark-hero.png`
+
+Confirm the tarball does not include local memory files, local planning docs, or the README hero image. The hero image lives in the GitHub repo and is referenced from the README by URL.
 
 ## Live Codex Verification
 
