@@ -103,11 +103,12 @@ export async function writeback(input: CodexHookInput): Promise<string> {
     const freshTurns = turns.slice(rotatedTranscript ? 0 : cursor.count);
     const immediatePrompts = await immediatePromptRecords(store, session);
 
+    const records: PathmarkRecordDraft[] = [];
     for (const turn of freshTurns) {
       if (turn.role === "user" && shouldSkipUserPrompt(turn.text)) continue;
       if (turn.role === "user" && consumeImmediatePrompt(immediatePrompts, turn.text, turn.at)) continue;
       if (turn.role === "assistant" && shouldSkipAssistantTurn(turn.text)) continue;
-      await store.addRecord(
+      records.push(
         capturedRecord({
           sessionId: session,
           cwd: input.cwd,
@@ -119,6 +120,7 @@ export async function writeback(input: CodexHookInput): Promise<string> {
       );
     }
 
+    await store.addRecords(records);
     await writeCursor(config.storeDir, session, turns.length, {
       transcriptFingerprint: transcriptFingerprint(turns),
     });

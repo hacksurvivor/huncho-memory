@@ -5,6 +5,8 @@ const WORD_RE = /[\p{L}\p{N}_'-]+/gu;
 const DEFAULT_LOCK_RETRY_MS = 10;
 const DEFAULT_LOCK_TIMEOUT_MS = 5000;
 const DEFAULT_STALE_LOCK_MS = 10 * 60 * 1000;
+const DEFAULT_NO_OWNER_STALE_LOCK_MS = 5000;
+const LOCK_OWNER_FILE = "owner.json";
 export class PathmarkStore {
     config;
     constructor(config) {
@@ -19,29 +21,46 @@ export class PathmarkStore {
         return record;
     }
     async addRecord(input) {
+        const [result] = await this.addRecords([input]);
+        return result;
+    }
+    async addRecords(inputs) {
         await this.ensureReady();
         const now = new Date().toISOString();
-        const normalizedText = input.text.trim();
-        if (!normalizedText) {
-            throw new Error("text is required");
-        }
-        return this.withWriteLock(async () => {
-            const id = input.id?.trim() || randomUUID();
-            const existing = (await this.readRecords({ includeDeleted: true })).find((record) => record.id === id);
-            if (existing) {
-                return { record: existing, created: false };
+        const drafts = inputs.map((input) => {
+            const normalizedText = input.text.trim();
+            if (!normalizedText) {
+                throw new Error("text is required");
             }
-            const record = {
-                id,
-                kind: input.kind,
-                text: normalizedText,
-                tags: normalizeTags(input.tags ?? []),
-                source: input.source?.trim() || "mcp",
-                createdAt: input.createdAt ?? now,
-                updatedAt: input.updatedAt ?? input.createdAt ?? now,
-            };
-            await this.append(record);
-            return { record, created: true };
+            return { input, normalizedText };
+        });
+        return this.withWriteLock(async () => {
+            const existingRecords = await this.readRecords({ includeDeleted: true });
+            const byId = new Map(existingRecords.map((record) => [record.id, record]));
+            const results = [];
+            const createdRecords = [];
+            for (const { input, normalizedText } of drafts) {
+                const id = input.id?.trim() || randomUUID();
+                const existing = byId.get(id);
+                if (existing) {
+                    results.push({ record: existing, created: false });
+                    continue;
+                }
+                const record = {
+                    id,
+                    kind: input.kind,
+                    text: normalizedText,
+                    tags: normalizeTags(input.tags ?? []),
+                    source: input.source?.trim() || "mcp",
+                    createdAt: input.createdAt ?? now,
+                    updatedAt: input.updatedAt ?? input.createdAt ?? now,
+                };
+                byId.set(id, record);
+                createdRecords.push(record);
+                results.push({ record, created: true });
+            }
+            await this.appendMany(createdRecords);
+            return results;
         });
     }
     async all(options = {}) {
@@ -94,8 +113,12 @@ export class PathmarkStore {
             .filter((record) => !options.kind || record.kind === options.kind);
     }
     async append(record) {
-        const line = `${JSON.stringify(record)}\n`;
-        await appendFile(this.config.memoryFile, line, "utf8");
+        await this.appendMany([record]);
+    }
+    async appendMany(records) {
+        if (records.length === 0)
+            return;
+        await appendFile(this.config.memoryFile, records.map((record) => JSON.stringify(record)).join("\n") + "\n", "utf8");
     }
     async rewrite(records) {
         await mkdir(this.config.storeDir, { recursive: true });
@@ -111,15 +134,18 @@ export class PathmarkStore {
         const lockTimeoutMs = envMs("PATHMARK_LOCK_TIMEOUT_MS", DEFAULT_LOCK_TIMEOUT_MS);
         const lockRetryMs = envMs("PATHMARK_LOCK_RETRY_MS", DEFAULT_LOCK_RETRY_MS);
         const staleLockMs = envMs("PATHMARK_STALE_LOCK_MS", DEFAULT_STALE_LOCK_MS);
+        const noOwnerStaleLockMs = envMs("PATHMARK_NO_OWNER_STALE_LOCK_MS", DEFAULT_NO_OWNER_STALE_LOCK_MS);
+        let lock;
         while (true) {
             try {
                 await mkdir(lockDir);
+                lock = await writeLockOwner(lockDir);
                 break;
             }
             catch (error) {
                 if (error.code !== "EEXIST")
                     throw error;
-                if (await removeStaleLock(lockDir, staleLockMs))
+                if (await removeStaleLock(lockDir, { staleLockMs, noOwnerStaleLockMs }))
                     continue;
                 if (Date.now() - startedAt > lockTimeoutMs) {
                     throw new Error(`Timed out waiting for Pathmark store lock: ${lockDir}`);
@@ -131,17 +157,44 @@ export class PathmarkStore {
             return await operation();
         }
         finally {
-            await rm(lockDir, { force: true, recursive: true });
+            if (lock)
+                await releaseLock(lock);
         }
     }
 }
-async function removeStaleLock(lockDir, staleLockMs) {
-    if (staleLockMs <= 0)
+async function writeLockOwner(lockDir) {
+    const lock = { dir: lockDir, token: randomUUID() };
+    try {
+        await writeFile(path.join(lockDir, LOCK_OWNER_FILE), `${JSON.stringify({ pid: process.pid, token: lock.token, createdAtMs: Date.now() })}\n`, "utf8");
+        return lock;
+    }
+    catch (error) {
+        await rm(lockDir, { force: true, recursive: true });
+        throw error;
+    }
+}
+async function releaseLock(lock) {
+    const owner = await readLockOwner(lock.dir);
+    if (owner?.token === lock.token) {
+        await rm(lock.dir, { force: true, recursive: true });
+    }
+}
+async function removeStaleLock(lockDir, options) {
+    if (options.staleLockMs <= 0 && options.noOwnerStaleLockMs <= 0)
         return false;
     try {
         const lock = await stat(lockDir);
-        if (Date.now() - lock.mtimeMs < staleLockMs)
-            return false;
+        const ageMs = Date.now() - lock.mtimeMs;
+        const owner = await readLockOwner(lockDir);
+        if (!owner) {
+            if (options.noOwnerStaleLockMs <= 0 || ageMs < options.noOwnerStaleLockMs)
+                return false;
+        }
+        else if (owner.pid && isPidAlive(owner.pid)) {
+            const ownerAgeMs = Date.now() - (owner.createdAtMs ?? lock.mtimeMs);
+            if (options.staleLockMs <= 0 || ownerAgeMs < options.staleLockMs)
+                return false;
+        }
     }
     catch (error) {
         if (error.code === "ENOENT")
@@ -156,6 +209,29 @@ async function removeStaleLock(lockDir, staleLockMs) {
         if (error.code === "ENOENT")
             return true;
         throw error;
+    }
+}
+async function readLockOwner(lockDir) {
+    try {
+        const parsed = JSON.parse(await readFile(path.join(lockDir, LOCK_OWNER_FILE), "utf8"));
+        return parsed && typeof parsed === "object" ? parsed : undefined;
+    }
+    catch (error) {
+        const code = error.code;
+        if (code === "ENOENT" || error instanceof SyntaxError)
+            return undefined;
+        throw error;
+    }
+}
+function isPidAlive(pid) {
+    if (!Number.isInteger(pid) || pid <= 0)
+        return false;
+    try {
+        process.kill(pid, 0);
+        return true;
+    }
+    catch (error) {
+        return error.code === "EPERM";
     }
 }
 function envMs(name, fallback) {

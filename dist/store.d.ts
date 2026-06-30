@@ -8,6 +8,10 @@ export declare class PathmarkStore {
         record: PathmarkRecord;
         created: boolean;
     }>;
+    addRecords(inputs: PathmarkRecordDraft[]): Promise<{
+        record: PathmarkRecord;
+        created: boolean;
+    }[]>;
     all(options?: {
         includeDeleted?: boolean;
         kind?: PathmarkRecordKind;
@@ -22,6 +26,7 @@ export declare class PathmarkStore {
     }): Promise<SearchResult[]>;
     private readRecords;
     private append;
+    private appendMany;
     private rewrite;
     private withWriteLock;
 }

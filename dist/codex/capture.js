@@ -88,6 +88,7 @@ export async function writeback(input) {
         const rotationDiscriminator = rotatedTranscript && !legacyCursorUnknown ? transcriptRotationDiscriminator(turns) : undefined;
         const freshTurns = turns.slice(rotatedTranscript ? 0 : cursor.count);
         const immediatePrompts = await immediatePromptRecords(store, session);
+        const records = [];
         for (const turn of freshTurns) {
             if (turn.role === "user" && shouldSkipUserPrompt(turn.text))
                 continue;
@@ -95,7 +96,7 @@ export async function writeback(input) {
                 continue;
             if (turn.role === "assistant" && shouldSkipAssistantTurn(turn.text))
                 continue;
-            await store.addRecord(capturedRecord({
+            records.push(capturedRecord({
                 sessionId: session,
                 cwd: input.cwd,
                 role: turn.role,
@@ -104,6 +105,7 @@ export async function writeback(input) {
                 stablePart: rotationDiscriminator ? `rotation:${rotationDiscriminator}:${turn.index}` : String(turn.index),
             }));
         }
+        await store.addRecords(records);
         await writeCursor(config.storeDir, session, turns.length, {
             transcriptFingerprint: transcriptFingerprint(turns),
         });

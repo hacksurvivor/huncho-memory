@@ -115,6 +115,47 @@ try {
   assert.equal(await staleLockStore.count(), 1);
   assert.equal((await jsonlLines("stale-lock")).length, 1);
 
+  const previousNoOwnerStaleLockMs = process.env.PATHMARK_NO_OWNER_STALE_LOCK_MS;
+  const previousStoreLockTimeoutMs = process.env.PATHMARK_LOCK_TIMEOUT_MS;
+  try {
+    process.env.PATHMARK_NO_OWNER_STALE_LOCK_MS = "10";
+    process.env.PATHMARK_LOCK_TIMEOUT_MS = "100";
+    const noOwnerGraceStore = createStore("no-owner-grace-lock");
+    await mkdir(path.join(loadConfig().storeDir, ".memory.lock"), { recursive: true });
+    const noOwnerGraceWrite = await noOwnerGraceStore.addRecord({
+      id: deterministicId(["capture", "no-owner-grace-lock"]),
+      kind: "memory",
+      text: "Recovered write after no-owner lock grace period.",
+      tags: ["codex-raw", "role-user"],
+      source: "codex:session:no-owner-grace-lock",
+      createdAt: "2026-06-29T00:00:00.000Z",
+    });
+    assert.equal(noOwnerGraceWrite.created, true);
+    assert.equal(await noOwnerGraceStore.count(), 1);
+  } finally {
+    restoreEnv("PATHMARK_NO_OWNER_STALE_LOCK_MS", previousNoOwnerStaleLockMs);
+    restoreEnv("PATHMARK_LOCK_TIMEOUT_MS", previousStoreLockTimeoutMs);
+  }
+
+  const deadOwnerStore = createStore("dead-owner-lock");
+  const deadOwnerLockDir = path.join(loadConfig().storeDir, ".memory.lock");
+  await mkdir(deadOwnerLockDir, { recursive: true });
+  await writeFile(
+    path.join(deadOwnerLockDir, "owner.json"),
+    `${JSON.stringify({ pid: 999999, token: "dead-owner", createdAtMs: Date.now() })}\n`,
+    "utf8",
+  );
+  const deadOwnerWrite = await deadOwnerStore.addRecord({
+    id: deterministicId(["capture", "dead-owner-lock"]),
+    kind: "memory",
+    text: "Recovered write after dead owner lock.",
+    tags: ["codex-raw", "role-user"],
+    source: "codex:session:dead-owner-lock",
+    createdAt: "2026-06-29T00:00:00.000Z",
+  });
+  assert.equal(deadOwnerWrite.created, true);
+  assert.equal(await deadOwnerStore.count(), 1);
+
   const rankingStore = createStore("ranking");
   const conclusionId = deterministicId(["ranking", "conclusion"]);
   const toolId = deterministicId(["ranking", "tool"]);
