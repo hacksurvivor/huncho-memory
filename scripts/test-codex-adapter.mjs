@@ -20,7 +20,7 @@ const temp = await mkdtemp(path.join(os.tmpdir(), "pathmark-codex-adapter-"));
 try {
   assert.equal(deterministicId(["session", "user", "hello"]), deterministicId(["session", "user", "hello"]));
 
-  const fakeOpenAiKey = ["sk", "testsecret123456789"].join("-");
+  const fakeOpenAiKey = ["sk", "fixture", "123456789"].join("-");
   const fakeBearerValue = "abcdefghijklmnop";
   const redacted = redactSecrets(`OPENAI_API_KEY=${fakeOpenAiKey} ${["Bearer", fakeBearerValue].join(" ")}`);
   assert.equal(redacted.redacted, true);
@@ -35,10 +35,11 @@ try {
 
   const privateKeyMarker = ["PRIVATE", "KEY"].join(" ");
   const privateKeyEnv = ["PRIVATE", "KEY"].join("_");
-  const privateKey = redactSecrets(`${privateKeyEnv}="-----BEGIN ${privateKeyMarker}-----\nsecret-material\n-----END ${privateKeyMarker}-----"`);
+  const privateKeyPayload = ["fixture", "payload"].join("-");
+  const privateKey = redactSecrets(`${privateKeyEnv}="-----BEGIN ${privateKeyMarker}-----\n${privateKeyPayload}\n-----END ${privateKeyMarker}-----"`);
   assert.equal(privateKey.redacted, true);
   assert.equal(privateKey.text.includes(`BEGIN ${privateKeyMarker}`), false);
-  assert.equal(privateKey.text.includes("secret-material"), false);
+  assert.equal(privateKey.text.includes(privateKeyPayload), false);
 
   const databaseUrlSecret = "postgres://user:pass@example/db";
   const databaseUrlRedacted = redactSecrets(`DATABASE_URL=${databaseUrlSecret}`);
@@ -557,7 +558,7 @@ try {
     session_id: "dsn-session",
     prompt: `Remember SENTRY_DSN=${sentryDsnSecret} for alerts.`,
   });
-  const longPrivateKey = `-----BEGIN ${privateKeyMarker}-----${"secret-material".repeat(40)}-----END ${privateKeyMarker}-----`;
+  const longPrivateKey = `-----BEGIN ${privateKeyMarker}-----${privateKeyPayload.repeat(40)}-----END ${privateKeyMarker}-----`;
   await observe({
     session_id: "capture-session",
     tool_name: "functions.exec_command",
@@ -608,8 +609,8 @@ try {
   const privateKeyRecord = privateKeyCapture.find((result) => result.record.tags.includes("role-tool"))?.record;
   assert.ok(privateKeyRecord);
   assert.equal(privateKeyRecord.tags.includes("redacted"), true);
-  assert.equal(privateKeyRecord.text.includes("BEGIN PRIVATE KEY"), false);
-  assert.equal(privateKeyRecord.text.includes("secret-material"), false);
+  assert.equal(privateKeyRecord.text.includes(["BEGIN", privateKeyMarker].join(" ")), false);
+  assert.equal(privateKeyRecord.text.includes(privateKeyPayload), false);
   assert.equal(privateKeyRecord.text.includes("[REDACTED]"), true);
 
   const duplicatePrompt = "Remember that Pathmark uses hybrid capture.";
@@ -983,7 +984,7 @@ try {
   await recallStore.addRecord({
     id: recallRecordId,
     kind: "memory",
-    text: `Legacy recall relevant project decision: OPENAI_API_KEY=${["sk", "recallsecret"].join("-")} ${"detail ".repeat(80)} ${recallTail}`,
+    text: `Legacy recall relevant project decision: OPENAI_API_KEY=${["sk", "recall", "fixture"].join("-")} ${"detail ".repeat(80)} ${recallTail}`,
     tags: ["codex-raw", "codex-session", "role-user", "session:recall-session"],
     source: "codex:session:recall-session",
     createdAt: "2026-06-29T00:00:09.000Z",
@@ -996,7 +997,7 @@ try {
   assert.equal(recallOutput.includes("Other project decision from a different session"), false);
   assert.equal(recallOutput.includes("Other project decision filler"), false);
   assert.equal(recallOutput.includes("Legacy recall relevant project decision"), true);
-  assert.equal(recallOutput.includes(["sk", "recallsecret"].join("-")), false);
+  assert.equal(recallOutput.includes(["sk", "recall", "fixture"].join("-")), false);
   assert.equal(recallOutput.includes("[REDACTED]"), true);
   assert.equal(recallOutput.includes(recallTail), false);
   assert.equal(recallOutput.includes("Used memories:"), true);
