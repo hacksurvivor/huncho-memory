@@ -98,6 +98,23 @@ try {
   assert.equal(await concurrentStore.count(), 1);
   assert.equal((await jsonlLines("concurrent")).length, 1);
 
+  const staleLockStore = createStore("stale-lock");
+  const staleLockDir = path.join(loadConfig().storeDir, ".memory.lock");
+  await mkdir(staleLockDir, { recursive: true });
+  const staleLockTime = new Date(Date.now() - 11 * 60 * 1000);
+  await utimes(staleLockDir, staleLockTime, staleLockTime);
+  const staleLockWrite = await staleLockStore.addRecord({
+    id: deterministicId(["capture", "stale-lock"]),
+    kind: "memory",
+    text: "Recovered write after abandoned lock.",
+    tags: ["codex-raw", "role-user"],
+    source: "codex:session:stale-lock",
+    createdAt: "2026-06-29T00:00:00.000Z",
+  });
+  assert.equal(staleLockWrite.created, true);
+  assert.equal(await staleLockStore.count(), 1);
+  assert.equal((await jsonlLines("stale-lock")).length, 1);
+
   const rankingStore = createStore("ranking");
   const conclusionId = deterministicId(["ranking", "conclusion"]);
   const toolId = deterministicId(["ranking", "tool"]);
@@ -462,6 +479,27 @@ try {
     tool_name: "functions.exec_command",
     tool_input: { cmd: "npm run build" },
   });
+
+  const previousLockTimeoutMs = process.env.PATHMARK_LOCK_TIMEOUT_MS;
+  const previousStaleLockMs = process.env.PATHMARK_STALE_LOCK_MS;
+  try {
+    process.env.PATHMARK_LOCK_TIMEOUT_MS = "25";
+    process.env.PATHMARK_STALE_LOCK_MS = "600000";
+    createStore("fresh-lock-warning");
+    await mkdir(path.join(loadConfig().storeDir, ".memory.lock"), { recursive: true });
+    const lockWarning = await prompt({
+      session_id: "fresh-lock-session",
+      prompt: "Remember that fresh locks should warn.",
+    });
+    assert.equal(lockWarning.includes("<pathmark-memory-warning>"), true);
+    assert.equal(lockWarning.includes("Timed out waiting for Pathmark store lock"), true);
+  } finally {
+    await rm(path.join(temp, "fresh-lock-warning", ".memory.lock"), { recursive: true, force: true });
+    restoreEnv("PATHMARK_LOCK_TIMEOUT_MS", previousLockTimeoutMs);
+    restoreEnv("PATHMARK_STALE_LOCK_MS", previousStaleLockMs);
+  }
+
+  createStore("capture");
   await prompt({
     session_id: "capture-session",
     prompt: `Remember OPENAI_API_KEY=${fakeOpenAiKey} for this test.`,
@@ -677,7 +715,9 @@ try {
     ].join("\n") + "\n",
     "utf8",
   );
-  assert.equal(await writeback({ session_id: "malformed-session", transcript_path: malformedTranscript }), "");
+  const malformedWarning = await writeback({ session_id: "malformed-session", transcript_path: malformedTranscript });
+  assert.equal(malformedWarning.includes("<pathmark-memory-warning>"), true);
+  assert.equal(malformedWarning.includes("Pathmark could not write transcript memory"), true);
   assert.equal(await readCursor(malformedStoreDir, "malformed-session"), 0);
   assert.equal(
     (await captureStore.all()).some((record) => record.source === "codex:session:malformed-session"),
@@ -700,7 +740,12 @@ try {
     ].join("\n") + "\n",
     "utf8",
   );
-  assert.equal(await writeback({ session_id: "malformed-message-session", transcript_path: malformedMessageTranscript }), "");
+  const malformedMessageWarning = await writeback({
+    session_id: "malformed-message-session",
+    transcript_path: malformedMessageTranscript,
+  });
+  assert.equal(malformedMessageWarning.includes("<pathmark-memory-warning>"), true);
+  assert.equal(malformedMessageWarning.includes("Pathmark could not write transcript memory"), true);
   assert.equal(await readCursor(malformedStoreDir, "malformed-message-session"), 0);
   assert.equal(
     (await captureStore.all()).some((record) => record.source === "codex:session:malformed-message-session"),

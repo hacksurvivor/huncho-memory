@@ -44,8 +44,8 @@ export async function prompt(input) {
             immediatePrompt: true,
         });
     }
-    catch {
-        return "";
+    catch (error) {
+        return hookWarning("capture the prompt", error);
     }
     if (!MEMORY_CUE.test(text))
         return "";
@@ -68,8 +68,8 @@ export async function observe(input) {
             at: new Date().toISOString(),
         });
     }
-    catch {
-        return "";
+    catch (error) {
+        return hookWarning("capture tool use", error);
     }
     return "";
 }
@@ -108,8 +108,8 @@ export async function writeback(input) {
             transcriptFingerprint: transcriptFingerprint(turns),
         });
     }
-    catch {
-        return "";
+    catch (error) {
+        return hookWarning("write transcript memory", error);
     }
     return "";
 }
@@ -179,6 +179,17 @@ function memoryBlock(results, memoryFile) {
         "MCP tools: use mcp__pathmark__chat for synthesized memory answers or mcp__pathmark__search_memory for exact records.",
         "</pathmark-memory>",
     ].join("\n");
+}
+function hookWarning(action, error) {
+    return [
+        "<pathmark-memory-warning>",
+        `Pathmark could not ${action}: ${errorSummary(error)}`,
+        "</pathmark-memory-warning>",
+    ].join("\n");
+}
+function errorSummary(error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return truncate(message.replace(/\s+/g, " ").trim() || "unknown error", 240);
 }
 function summarizeResults(results) {
     return results

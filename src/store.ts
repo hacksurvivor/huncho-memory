@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { PathmarkConfig, PathmarkRecord, PathmarkRecordDraft, PathmarkRecordKind, SearchResult } from "./types.js";
 
 const WORD_RE = /[\p{L}\p{N}_'-]+/gu;
-const LOCK_RETRY_MS = 10;
-const LOCK_TIMEOUT_MS = 5000;
+const DEFAULT_LOCK_RETRY_MS = 10;
+const DEFAULT_LOCK_TIMEOUT_MS = 5000;
+const DEFAULT_STALE_LOCK_MS = 10 * 60 * 1000;
 
 export class PathmarkStore {
   constructor(private readonly config: PathmarkConfig) {}
@@ -137,6 +138,9 @@ export class PathmarkStore {
     await mkdir(this.config.storeDir, { recursive: true });
     const lockDir = path.join(this.config.storeDir, ".memory.lock");
     const startedAt = Date.now();
+    const lockTimeoutMs = envMs("PATHMARK_LOCK_TIMEOUT_MS", DEFAULT_LOCK_TIMEOUT_MS);
+    const lockRetryMs = envMs("PATHMARK_LOCK_RETRY_MS", DEFAULT_LOCK_RETRY_MS);
+    const staleLockMs = envMs("PATHMARK_STALE_LOCK_MS", DEFAULT_STALE_LOCK_MS);
 
     while (true) {
       try {
@@ -144,10 +148,11 @@ export class PathmarkStore {
         break;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-        if (Date.now() - startedAt > LOCK_TIMEOUT_MS) {
+        if (await removeStaleLock(lockDir, staleLockMs)) continue;
+        if (Date.now() - startedAt > lockTimeoutMs) {
           throw new Error(`Timed out waiting for Pathmark store lock: ${lockDir}`);
         }
-        await sleep(LOCK_RETRY_MS);
+        await sleep(lockRetryMs);
       }
     }
 
@@ -157,6 +162,33 @@ export class PathmarkStore {
       await rm(lockDir, { force: true, recursive: true });
     }
   }
+}
+
+async function removeStaleLock(lockDir: string, staleLockMs: number): Promise<boolean> {
+  if (staleLockMs <= 0) return false;
+
+  try {
+    const lock = await stat(lockDir);
+    if (Date.now() - lock.mtimeMs < staleLockMs) return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
+    throw error;
+  }
+
+  try {
+    await rm(lockDir, { force: false, recursive: true });
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
+    throw error;
+  }
+}
+
+function envMs(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function normalizeTags(tags: string[]): string[] {

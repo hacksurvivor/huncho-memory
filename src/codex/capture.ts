@@ -56,8 +56,8 @@ export async function prompt(input: CodexHookInput): Promise<string> {
       at: new Date().toISOString(),
       immediatePrompt: true,
     });
-  } catch {
-    return "";
+  } catch (error) {
+    return hookWarning("capture the prompt", error);
   }
 
   if (!MEMORY_CUE.test(text)) return "";
@@ -80,8 +80,8 @@ export async function observe(input: CodexHookInput): Promise<string> {
       text: summary,
       at: new Date().toISOString(),
     });
-  } catch {
-    return "";
+  } catch (error) {
+    return hookWarning("capture tool use", error);
   }
 
   return "";
@@ -122,8 +122,8 @@ export async function writeback(input: CodexHookInput): Promise<string> {
     await writeCursor(config.storeDir, session, turns.length, {
       transcriptFingerprint: transcriptFingerprint(turns),
     });
-  } catch {
-    return "";
+  } catch (error) {
+    return hookWarning("write transcript memory", error);
   }
 
   return "";
@@ -216,6 +216,19 @@ function memoryBlock(results: SearchResult[], memoryFile: string): string {
     "MCP tools: use mcp__pathmark__chat for synthesized memory answers or mcp__pathmark__search_memory for exact records.",
     "</pathmark-memory>",
   ].join("\n");
+}
+
+function hookWarning(action: string, error: unknown): string {
+  return [
+    "<pathmark-memory-warning>",
+    `Pathmark could not ${action}: ${errorSummary(error)}`,
+    "</pathmark-memory-warning>",
+  ].join("\n");
+}
+
+function errorSummary(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return truncate(message.replace(/\s+/g, " ").trim() || "unknown error", 240);
 }
 
 function summarizeResults(results: SearchResult[]): string {
